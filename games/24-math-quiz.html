@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Math Quiz</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#060a06;color:#fff;font-family:'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px;touch-action:manipulation}
+h1{font-size:1.8rem;background:linear-gradient(135deg,#4ade80,#22d3ee);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px}
+.hud{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;justify-content:center}
+.stat{background:#0a0f0a;border:1px solid #142014;border-radius:10px;padding:7px 14px;text-align:center;min-width:72px}
+.stat-label{font-size:.6rem;color:#6b7280;text-transform:uppercase;letter-spacing:1px}
+.stat-val{font-size:1.05rem;font-weight:700;color:#4ade80}
+.timer-ring{width:70px;height:70px;position:relative;margin-bottom:14px}
+.timer-ring svg{transform:rotate(-90deg)}
+.timer-ring circle{fill:none;stroke-width:5;transition:stroke-dashoffset .1s linear}
+.timer-bg{stroke:#142014}
+.timer-fg{stroke:#4ade80;stroke-linecap:round;transition:stroke .3s}
+.timer-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.3rem;font-weight:800;color:#4ade80}
+.question-card{background:#0a0f0a;border:2px solid #142014;border-radius:20px;padding:28px 24px;max-width:380px;width:100%;text-align:center;margin-bottom:16px;position:relative;overflow:hidden}
+.question-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(74,222,128,.04),rgba(34,211,238,.04));pointer-events:none}
+.q-level{font-size:.7rem;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.q-text{font-size:2.2rem;font-weight:800;color:#f1f5f9;margin-bottom:6px;min-height:60px;display:flex;align-items:center;justify-content:center}
+.q-sub{font-size:.8rem;color:#6b7280;margin-bottom:0}
+.options{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:380px;width:100%;margin-bottom:14px}
+.opt{background:#0a0f0a;border:2px solid #142014;border-radius:14px;padding:14px;font-size:1.3rem;font-weight:700;cursor:pointer;transition:all .2s;color:#e2e8f0;text-align:center}
+.opt:hover{border-color:#4ade80;background:#0f1f0f;transform:scale(1.03)}
+.opt.correct{background:#052010;border-color:#4ade80;color:#4ade80;box-shadow:0 0 20px rgba(74,222,128,.3);animation:pulse .4s}
+.opt.wrong{background:#200505;border-color:#ef4444;color:#ef4444;box-shadow:0 0 20px rgba(239,68,68,.3);animation:shake .3s}
+.opt.reveal{border-color:#4ade80;color:#4ade80}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.progress{width:min(380px,90vw);height:6px;background:#142014;border-radius:3px;margin-bottom:14px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,#4ade80,#22d3ee);border-radius:3px;transition:width .4s ease}
+.streak-msg{min-height:24px;font-size:.9rem;font-weight:700;text-align:center;margin-bottom:8px;color:#fde68a}
+.diff-bar{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;justify-content:center}
+.diff-btn{background:#0a0f0a;border:1px solid #142014;color:#9ca3af;border-radius:8px;padding:5px 13px;cursor:pointer;font-size:.75rem;transition:all .2s}
+.diff-btn.active{background:#052010;border-color:#4ade80;color:#86efac}
+.btn{background:linear-gradient(135deg,#14532d,#16a34a);border:none;color:#fff;border-radius:10px;padding:9px 22px;cursor:pointer;font-size:.85rem;font-weight:700;transition:all .2s;margin-top:4px}
+.btn:hover{transform:translateY(-2px)}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:100}
+.overlay.show{display:flex}
+.ov-box{background:#0a0f0a;border:2px solid #4ade80;border-radius:20px;padding:36px;text-align:center;animation:pop .4s ease;max-width:300px;width:90%}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+.ov-emoji{font-size:3rem;display:block;margin-bottom:10px}
+.ov-title{font-size:1.7rem;color:#4ade80;margin-bottom:8px}
+.ov-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px}
+.ov-stat{background:#0f1a0f;border-radius:8px;padding:8px;text-align:center}
+.ov-val{font-size:1.4rem;font-weight:800;color:#4ade80}
+.ov-label{font-size:.62rem;color:#6b7280;text-transform:uppercase}
+</style>
+</head>
+<body>
+<h1>🧮 Math Quiz</h1>
+<div class="hud">
+  <div class="stat"><div class="stat-label">Score</div><div class="stat-val" id="score">0</div></div>
+  <div class="stat"><div class="stat-label">Best</div><div class="stat-val" id="best">0</div></div>
+  <div class="stat"><div class="stat-label">Correct</div><div class="stat-val" id="correct">0</div></div>
+  <div class="stat"><div class="stat-label">Streak</div><div class="stat-val" id="streak">0</div></div>
+</div>
+<div class="diff-bar">
+  <button class="diff-btn active" onclick="setDiff('easy',this)">Easy</button>
+  <button class="diff-btn" onclick="setDiff('medium',this)">Medium</button>
+  <button class="diff-btn" onclick="setDiff('hard',this)">Hard</button>
+  <button class="diff-btn" onclick="setDiff('mixed',this)">Mixed</button>
+</div>
+<div class="timer-ring">
+  <svg width="70" height="70" viewBox="0 0 70 70">
+    <circle class="timer-bg" cx="35" cy="35" r="30"/>
+    <circle class="timer-fg" id="timerCircle" cx="35" cy="35" r="30" stroke-dasharray="188.5" stroke-dashoffset="0"/>
+  </svg>
+  <div class="timer-num" id="timerNum">10</div>
+</div>
+<div class="progress"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+<div class="streak-msg" id="streakMsg"></div>
+<div class="question-card">
+  <div class="q-level" id="qLevel">Question 1 of 10</div>
+  <div class="q-text" id="qText">?</div>
+  <div class="q-sub" id="qSub"></div>
+</div>
+<div class="options" id="options"></div>
+<button class="btn" onclick="startGame()">▶ New Game</button>
+<div class="overlay" id="ov">
+  <div class="ov-box">
+    <span class="ov-emoji" id="ovEmoji">🏆</span>
+    <div class="ov-title" id="ovTitle">Great Job!</div>
+    <div class="ov-grid">
+      <div class="ov-stat"><div class="ov-val" id="ovScore">0</div><div class="ov-label">Score</div></div>
+      <div class="ov-stat"><div class="ov-val" id="ovAcc">0%</div><div class="ov-label">Accuracy</div></div>
+      <div class="ov-stat"><div class="ov-val" id="ovStreak">0</div><div class="ov-label">Best Streak</div></div>
+      <div class="ov-stat"><div class="ov-val" id="ovTime">0s</div><div class="ov-label">Avg Time</div></div>
+    </div>
+    <button class="btn" onclick="startGame();closeOv()">▶ Play Again</button>
+  </div>
+</div>
+<script>
+const TOTAL=10,TIME_PER_Q=10;
+let score=0,best=0,correct=0,streak=0,maxStreak=0,diff='easy';
+let qNum=0,answered=false,timerInt,timeLeft,totalAnswered=0,totalTime=0,qStartTime;
+
+function setDiff(d,btn){diff=d;document.querySelectorAll('.diff-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');startGame();}
+
+function genQuestion(){
+  const ops={easy:['+','-'],medium:['+','-','×'],hard:['+','-','×','÷'],mixed:['+','-','×','÷','²','√']}[diff];
+  const op=ops[Math.floor(Math.random()*ops.length)];
+  let a,b,ans,text;
+  if(op==='+'){a=rnd(diff==='easy'?20:diff==='medium'?50:99);b=rnd(diff==='easy'?20:50);ans=a+b;text=`${a} + ${b}`;}
+  else if(op==='-'){a=rnd(diff==='easy'?20:50)+10;b=rnd(a);ans=a-b;text=`${a} − ${b}`;}
+  else if(op==='×'){a=rnd(diff==='medium'?9:12)+1;b=rnd(diff==='medium'?9:12)+1;ans=a*b;text=`${a} × ${b}`;}
+  else if(op==='÷'){b=rnd(9)+2;ans=rnd(9)+1;a=b*ans;text=`${a} ÷ ${b}`;}
+  else if(op==='²'){a=rnd(12)+2;ans=a*a;text=`${a}²`;}
+  else{const squares=[4,9,16,25,36,49,64,81,100,121,144];a=squares[Math.floor(Math.random()*squares.length)];ans=Math.sqrt(a);text=`√${a}`;}
+  // Generate 3 wrong answers
+  const wrongs=new Set();
+  while(wrongs.size<3){
+    const w=ans+Math.floor(Math.random()*10-5);
+    if(w!==ans&&w>=0)wrongs.add(w);
+  }
+  const opts=shuffle([ans,...wrongs]);
+  return{text,ans,opts,op};
+}
+
+function rnd(n){return Math.floor(Math.random()*n)+1;}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+function startGame(){
+  score=0;correct=0;streak=0;maxStreak=0;qNum=0;totalAnswered=0;totalTime=0;
+  updateHUD();closeOv();nextQ();
+}
+
+function nextQ(){
+  if(qNum>=TOTAL){endGame();return;}
+  qNum++;answered=false;timeLeft=TIME_PER_Q;
+  document.getElementById('qLevel').textContent=`Question ${qNum} of ${TOTAL}`;
+  document.getElementById('progressFill').style.width=`${((qNum-1)/TOTAL)*100}%`;
+  const q=genQuestion();
+  document.getElementById('qText').textContent=q.text+'  = ?';
+  document.getElementById('qSub').textContent='';
+  document.getElementById('streakMsg').textContent='';
+  // Render options
+  const opts=document.getElementById('options');opts.innerHTML='';
+  q.opts.forEach(v=>{
+    const el=document.createElement('div');el.className='opt';el.textContent=v;
+    el.addEventListener('click',()=>{if(!answered)answer(v,q.ans,q.opts,el);});
+    opts.appendChild(el);
+  });
+  qStartTime=Date.now();
+  clearInterval(timerInt);startTimer(q);
+}
+
+function startTimer(q){
+  const circ=document.getElementById('timerCircle');
+  const total=188.5;
+  circ.style.stroke='#4ade80';
+  timerInt=setInterval(()=>{
+    timeLeft-=.1;
+    const pct=timeLeft/TIME_PER_Q;
+    circ.style.strokeDashoffset=total*(1-pct);
+    document.getElementById('timerNum').textContent=Math.ceil(timeLeft);
+    if(pct<.3)circ.style.stroke='#ef4444';
+    else if(pct<.6)circ.style.stroke='#f59e0b';
+    if(timeLeft<=0){clearInterval(timerInt);timeUp(q);}
+  },100);
+}
+
+function answer(val,ans,opts,el){
+  answered=true;clearInterval(timerInt);
+  const timeTaken=(Date.now()-qStartTime)/1000;
+  totalTime+=timeTaken;totalAnswered++;
+  const allOpts=document.querySelectorAll('.opt');
+  if(val===ans){
+    el.classList.add('correct');
+    const bonus=Math.round(timeLeft*5);
+    score+=10+bonus;correct++;streak++;maxStreak=Math.max(maxStreak,streak);
+    const msgs=['🔥 Correct!',`⚡ +${10+bonus} pts!`,'✅ Nice one!','🎯 Spot on!'];
+    if(streak>=3)document.getElementById('streakMsg').textContent=`🔥 ${streak}x Streak! Bonus x${Math.floor(streak/3)+1}`;
+    else document.getElementById('streakMsg').textContent=msgs[Math.floor(Math.random()*msgs.length)];
+  } else {
+    el.classList.add('wrong');streak=0;
+    allOpts.forEach(o=>{if(parseInt(o.textContent)===ans)o.classList.add('reveal');});
+    document.getElementById('streakMsg').textContent=`❌ Answer was ${ans}`;
+  }
+  updateHUD();
+  setTimeout(nextQ,1100);
+}
+
+function timeUp(q){
+  answered=true;streak=0;
+  document.getElementById('streakMsg').textContent=`⏰ Time's up! Answer: ${q.ans}`;
+  document.querySelectorAll('.opt').forEach(o=>{if(parseInt(o.textContent)===q.ans)o.classList.add('reveal');});
+  updateHUD();setTimeout(nextQ,1100);
+}
+
+function updateHUD(){
+  document.getElementById('score').textContent=score;
+  document.getElementById('best').textContent=Math.max(best,score);
+  document.getElementById('correct').textContent=correct;
+  document.getElementById('streak').textContent=streak;
+}
+
+function endGame(){
+  best=Math.max(best,score);
+  const acc=totalAnswered?Math.round(correct/totalAnswered*100):0;
+  const avgT=totalAnswered?Math.round(totalTime/totalAnswered*10)/10:0;
+  document.getElementById('ovEmoji').textContent=correct>=8?'🏆':correct>=6?'🎉':correct>=4?'👍':'📚';
+  document.getElementById('ovTitle').textContent=correct>=8?'Excellent!':correct>=6?'Great Job!':correct>=4?'Good Try!':'Keep Practicing!';
+  document.getElementById('ovScore').textContent=score;
+  document.getElementById('ovAcc').textContent=acc+'%';
+  document.getElementById('ovStreak').textContent=maxStreak;
+  document.getElementById('ovTime').textContent=avgT+'s';
+  document.getElementById('progressFill').style.width='100%';
+  document.getElementById('ov').classList.add('show');
+}
+
+function closeOv(){document.getElementById('ov').classList.remove('show');}
+startGame();
+</script>
+</body>
+</html>

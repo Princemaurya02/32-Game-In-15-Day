@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Bubble Shooter</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#03050d;color:#fff;font-family:'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:10px;touch-action:none;overflow:hidden}
+h1{font-size:1.7rem;background:linear-gradient(135deg,#c084fc,#f472b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px}
+.hud{display:flex;gap:10px;margin-bottom:6px;flex-wrap:wrap;justify-content:center}
+.stat{background:#080b18;border:1px solid #12183a;border-radius:10px;padding:5px 12px;text-align:center;min-width:65px}
+.stat-label{font-size:.58rem;color:#6b7280;text-transform:uppercase;letter-spacing:1px}
+.stat-val{font-size:1rem;font-weight:700;color:#c084fc}
+canvas{border:2px solid #12183a;border-radius:8px;display:block;cursor:crosshair}
+.next-row{display:flex;gap:6px;align-items:center;margin:6px 0;font-size:.75rem;color:#6b7280}
+.btn{background:linear-gradient(135deg,#581c87,#7e22ce);border:none;color:#fff;border-radius:10px;padding:8px 20px;cursor:pointer;font-size:.82rem;font-weight:700;transition:all .2s;margin-top:6px}
+.btn:hover{transform:translateY(-2px)}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;z-index:100}
+.overlay.show{display:flex}
+.ov-box{background:#080b18;border:2px solid #c084fc;border-radius:20px;padding:36px;text-align:center;animation:pop .4s ease;max-width:280px;width:90%}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+.ov-emoji{font-size:3rem;display:block;margin-bottom:10px}
+.ov-title{font-size:1.7rem;color:#c084fc;margin-bottom:6px}
+.ov-sub{color:#9ca3af;margin-bottom:20px;font-size:.9rem}
+</style>
+</head>
+<body>
+<h1>🫧 Bubble Shooter</h1>
+<div class="hud">
+  <div class="stat"><div class="stat-label">Score</div><div class="stat-val" id="score">0</div></div>
+  <div class="stat"><div class="stat-label">Best</div><div class="stat-val" id="best">0</div></div>
+  <div class="stat"><div class="stat-label">Shots</div><div class="stat-val" id="shots">0</div></div>
+  <div class="stat"><div class="stat-label">Level</div><div class="stat-val" id="level">1</div></div>
+</div>
+<canvas id="c"></canvas>
+<button class="btn" onclick="startGame()">▶ New Game</button>
+<div class="overlay" id="ov">
+  <div class="ov-box">
+    <span class="ov-emoji" id="ovEmoji">🎉</span>
+    <div class="ov-title" id="ovTitle">Clear!</div>
+    <div class="ov-sub" id="ovSub"></div>
+    <button class="btn" onclick="startGame();closeOv()">▶ Play Again</button>
+  </div>
+</div>
+<script>
+const C=document.getElementById('c'),ctx=C.getContext('2d');
+const W=Math.min(340,window.innerWidth-24),H=Math.min(520,window.innerHeight-200);
+C.width=W;C.height=H;
+const R=16,COLS=Math.floor(W/(R*2)),COLORS=['#ef4444','#3b82f6','#22c55e','#f59e0b','#a855f7','#ec4899'];
+let grid,bullet,nextBullet,score,best=0,shots,level,angle=Math.PI/2,raf,running,falling;
+
+function rowX(col,row){return R+col*R*2+(row%2===1?R:0);}
+function rowY(row){return R+row*R*1.72;}
+
+function startGame(){
+  grid=[];
+  const initRows=5+level;
+  for(let r=0;r<initRows;r++){
+    const cols=r%2===0?COLS:COLS-1;
+    const row=[];
+    for(let c=0;c<cols;c++)row.push(COLORS[Math.floor(Math.random()*COLORS.length)]);
+    grid.push(row);
+  }
+  score=0;shots=0;falling=[];running=true;
+  updateHUD();newBullet();closeOv();
+  cancelAnimationFrame(raf);loop();
+}
+
+function newBullet(){
+  bullet={x:W/2,y:H-R-4,color:nextBullet||randColor(),vx:0,vy:0,active:false};
+  nextBullet=randColor();
+}
+
+function randColor(){return COLORS[Math.floor(Math.random()*COLORS.length)];}
+
+function shoot(ax,ay){
+  if(bullet.active)return;
+  const dx=ax-W/2,dy=ay-(H-R-4);
+  const len=Math.sqrt(dx*dx+dy*dy);
+  const spd=8;
+  bullet.vx=dx/len*spd;bullet.vy=dy/len*spd;
+  bullet.active=true;shots++;updateHUD();
+}
+
+function loop(){
+  raf=requestAnimationFrame(loop);
+  ctx.fillStyle='#03050d';ctx.fillRect(0,0,W,H);
+  // Draw grid
+  grid.forEach((row,r)=>row.forEach((col,c)=>{
+    if(!col)return;
+    drawBubble(rowX(c,r),rowY(r),col);
+  }));
+  // Falling
+  falling.forEach((b,i)=>{
+    b.y+=4;b.vy+=.3;b.x+=b.vx;
+    drawBubble(b.x,b.y,b.color,.7);
+    if(b.y>H)falling.splice(i,1);
+  });
+  // Aim line
+  if(!bullet.active){
+    ctx.strokeStyle='rgba(255,255,255,.15)';ctx.setLineDash([6,8]);ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(W/2,H-R-4);
+    ctx.lineTo(W/2+Math.cos(Math.PI-angle)*120,H-R-4-Math.sin(Math.PI-angle)*120);
+    ctx.stroke();ctx.setLineDash([]);
+  }
+  // Bullet
+  drawBubble(bullet.x,bullet.y,bullet.color);
+  // Next preview
+  ctx.fillStyle='rgba(255,255,255,.3)';ctx.font='.7rem Segoe UI';ctx.textAlign='left';ctx.textBaseline='middle';
+  ctx.fillText('Next:',8,H-R-4);
+  drawBubble(52,H-R-4,nextBullet,1,.8);
+  // Move bullet
+  if(bullet.active){
+    bullet.x+=bullet.vx;bullet.y+=bullet.vy;
+    if(bullet.x<R){bullet.x=R;bullet.vx*=-1;}
+    if(bullet.x>W-R){bullet.x=W-R;bullet.vx*=-1;}
+    if(bullet.y<R){snapBullet();}
+    else if(checkCollision()){snapBullet();}
+    if(bullet.y>H){newBullet();}
+  }
+  // Lose check
+  if(grid.length>0&&rowY(grid.length-1)>H-R*4&&!bullet.active){
+    gameOver(false);
+  }
+}
+
+function drawBubble(x,y,color,alpha=1,scale=1){
+  ctx.save();ctx.globalAlpha=alpha;
+  ctx.beginPath();ctx.arc(x,y,R*scale,0,Math.PI*2);
+  ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=10;ctx.fill();
+  ctx.shadowBlur=0;
+  // Sheen
+  ctx.beginPath();ctx.arc(x-R*.25*scale,y-R*.3*scale,R*.35*scale,0,Math.PI*2);
+  ctx.fillStyle='rgba(255,255,255,.3)';ctx.shadowBlur=0;ctx.fill();
+  ctx.restore();
+}
+
+function checkCollision(){
+  for(let r=0;r<grid.length;r++){
+    const row=grid[r],cols=r%2===0?COLS:COLS-1;
+    for(let c=0;c<cols;c++){
+      if(!row[c])continue;
+      const bx=rowX(c,r),by=rowY(r);
+      const dx=bullet.x-bx,dy=bullet.y-by;
+      if(dx*dx+dy*dy<(R*2-.5)*(R*2-.5))return true;
+    }
+  }
+  return false;
+}
+
+function snapBullet(){
+  // Find nearest empty slot
+  let bestR=-1,bestC=-1,bestDist=Infinity;
+  const checkR=Math.max(0,Math.min(grid.length,Math.round((bullet.y-R)/(R*1.72))));
+  for(let r=Math.max(0,checkR-2);r<=Math.min(grid.length,checkR+2);r++){
+    const cols=r%2===0?COLS:COLS-1;
+    if(r===grid.length){
+      // New row
+      for(let c=0;c<cols;c++){
+        const bx=rowX(c,r),by=rowY(r);
+        const d=(bullet.x-bx)**2+(bullet.y-by)**2;
+        if(d<bestDist){bestDist=d;bestR=r;bestC=c;}
+      }
+    } else {
+      for(let c=0;c<(r%2===0?COLS:COLS-1);c++){
+        if(grid[r][c])continue;
+        const bx=rowX(c,r),by=rowY(r);
+        const d=(bullet.x-bx)**2+(bullet.y-by)**2;
+        if(d<bestDist){bestDist=d;bestR=r;bestC=c;}
+      }
+    }
+  }
+  if(bestR<0){newBullet();return;}
+  if(bestR===grid.length)grid.push(Array(bestR%2===0?COLS:COLS-1).fill(null));
+  grid[bestR][bestC]=bullet.color;
+  const popped=popGroup(bestR,bestC,bullet.color);
+  if(popped>=3){
+    score+=popped*10*(popped>=5?2:1);
+    const orphans=findOrphans();
+    orphans.forEach(([r,c])=>{
+      falling.push({x:rowX(c,r),y:rowY(r),color:grid[r][c],vx:(Math.random()-.5)*3,vy:-2});
+      grid[r][c]=null;
+    });
+    score+=orphans.length*5;
+    updateHUD();
+    if(grid.every(row=>row.every(c=>!c)))gameOver(true);
+  }
+  newBullet();
+}
+
+function getNeighbors(r,c){
+  const ns=[];const odd=r%2===1;
+  [[0,1],[0,-1],[-1,0],[1,0],[-1,odd?1:0],[1,odd?1:0]].forEach(([dr,dc])=>{
+    const nr=r+dr,nc=c+dc;
+    if(nr>=0&&nr<grid.length&&nc>=0&&nc<(nr%2===0?COLS:COLS-1))ns.push([nr,nc]);
+  });
+  return ns;
+}
+
+function popGroup(sr,sc,color){
+  const visited=new Set();const queue=[[sr,sc]];visited.add(`${sr},${sc}`);
+  while(queue.length){
+    const[r,c]=queue.shift();
+    getNeighbors(r,c).forEach(([nr,nc])=>{
+      const k=`${nr},${nc}`;
+      if(!visited.has(k)&&grid[nr][nc]===color){visited.add(k);queue.push([nr,nc]);}
+    });
+  }
+  if(visited.size>=3){
+    visited.forEach(k=>{const[r,c]=k.split(',').map(Number);falling.push({x:rowX(c,r),y:rowY(r),color:grid[r][c],vx:(Math.random()-.5)*3,vy:-2});grid[r][c]=null;});
+    return visited.size;
+  }
+  return 0;
+}
+
+function findOrphans(){
+  const connected=new Set();const queue=[];
+  grid[0]?.forEach((v,c)=>{if(v){queue.push([0,c]);connected.add(`0,${c}`);}});
+  while(queue.length){
+    const[r,c]=queue.shift();
+    getNeighbors(r,c).forEach(([nr,nc])=>{
+      const k=`${nr},${nc}`;
+      if(!connected.has(k)&&grid[nr]?.[nc]){connected.add(k);queue.push([nr,nc]);}
+    });
+  }
+  const orphans=[];
+  grid.forEach((row,r)=>row.forEach((v,c)=>{if(v&&!connected.has(`${r},${c}`))orphans.push([r,c]);}));
+  return orphans;
+}
+
+function gameOver(won){
+  running=false;cancelAnimationFrame(raf);
+  if(score>best)best=score;
+  if(won)level++;
+  document.getElementById('ovEmoji').textContent=won?'🎉':'💥';
+  document.getElementById('ovTitle').textContent=won?`Level ${level-1} Clear!`:'Too Low!';
+  document.getElementById('ovSub').textContent=`Score: ${score} · Shots: ${shots}`;
+  document.getElementById('ov').classList.add('show');
+}
+
+function updateHUD(){
+  document.getElementById('score').textContent=score;
+  document.getElementById('best').textContent=best;
+  document.getElementById('shots').textContent=shots;
+  document.getElementById('level').textContent=level;
+}
+
+C.addEventListener('click',e=>{const r=C.getBoundingClientRect();shoot(e.clientX-r.left,e.clientY-r.top);});
+C.addEventListener('touchstart',e=>{e.preventDefault();const r=C.getBoundingClientRect();shoot(e.touches[0].clientX-r.left,e.touches[0].clientY-r.top);},{passive:false});
+C.addEventListener('mousemove',e=>{const r=C.getBoundingClientRect();const dx=e.clientX-r.left-W/2,dy=e.clientY-r.top-(H-R-4);angle=Math.atan2(-dy,dx);});
+
+function closeOv(){document.getElementById('ov').classList.remove('show');}
+level=1;startGame();
+</script>
+</body>
+</html>

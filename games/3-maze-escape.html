@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maze Escape</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #050510; color: #fff; font-family: 'Segoe UI', sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 16px; touch-action: none; }
+  h1 { font-size: 1.8rem; background: linear-gradient(135deg, #f59e0b, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 10px; }
+  .hud { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; justify-content: center; }
+  .stat { background: #0f0f1e; border: 1px solid #1f1f3a; border-radius: 10px; padding: 6px 14px; text-align: center; }
+  .stat-label { font-size: 0.6rem; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; }
+  .stat-val { font-size: 1.1rem; font-weight: 700; color: #f59e0b; }
+  canvas { border: 2px solid #1f1f3a; border-radius: 12px; display: block; max-width: 100%; }
+  .controls { display: grid; grid-template-columns: repeat(3, 56px); grid-template-rows: repeat(2, 56px); gap: 6px; margin-top: 16px; }
+  .dpad { background: #0f0f1e; border: 1px solid #1f1f3a; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; cursor: pointer; user-select: none; -webkit-user-select: none; transition: background .1s; }
+  .dpad:active { background: #1f1f3a; }
+  .dpad.up { grid-column: 2; grid-row: 1; }
+  .dpad.left { grid-column: 1; grid-row: 2; }
+  .dpad.down { grid-column: 2; grid-row: 2; }
+  .dpad.right { grid-column: 3; grid-row: 2; }
+  .win-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; align-items: center; justify-content: center; z-index: 100; }
+  .win-overlay.show { display: flex; }
+  .win-box { background: #0f0f1e; border: 2px solid #f59e0b; border-radius: 20px; padding: 36px; text-align: center; animation: popIn .5s ease; max-width: 300px; }
+  @keyframes popIn { from{transform:scale(0.5);opacity:0} to{transform:scale(1);opacity:1} }
+  .win-emoji { font-size: 3.5rem; display: block; margin-bottom: 12px; }
+  .win-title { font-size: 1.8rem; color: #f59e0b; margin-bottom: 8px; }
+  .win-stats { color: #9ca3af; margin-bottom: 20px; font-size: 0.9rem; }
+  .btn { background: linear-gradient(135deg, #b45309, #d97706); border: none; color: #fff; border-radius: 10px; padding: 10px 24px; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all .2s; display: inline-block; margin: 4px; }
+  .btn:hover { transform: translateY(-2px); }
+  .level-info { color: #9ca3af; font-size: 0.8rem; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<h1>🌀 Maze Escape</h1>
+<div class="hud">
+  <div class="stat"><div class="stat-label">Level</div><div class="stat-val" id="level">1</div></div>
+  <div class="stat"><div class="stat-label">Time</div><div class="stat-val" id="timer">0:00</div></div>
+  <div class="stat"><div class="stat-label">Steps</div><div class="stat-val" id="steps">0</div></div>
+</div>
+<div class="level-info" id="levelInfo">Navigate to the 🚪 exit!</div>
+<canvas id="canvas"></canvas>
+<div class="controls">
+  <div class="dpad up" ontouchstart="move(0,-1)" onmousedown="move(0,-1)">↑</div>
+  <div class="dpad left" ontouchstart="move(-1,0)" onmousedown="move(-1,0)">←</div>
+  <div class="dpad down" ontouchstart="move(0,1)" onmousedown="move(0,1)">↓</div>
+  <div class="dpad right" ontouchstart="move(1,0)" onmousedown="move(1,0)">→</div>
+</div>
+
+<div class="win-overlay" id="winOverlay">
+  <div class="win-box">
+    <span class="win-emoji">🎊</span>
+    <div class="win-title">Escaped!</div>
+    <div class="win-stats" id="winStats"></div>
+    <button class="btn" onclick="nextLevel()">Next Level →</button>
+    <br>
+    <button class="btn" style="background:#1f2937" onclick="closeWin()">Retry</button>
+  </div>
+</div>
+
+<script>
+const SIZES = [9, 13, 17, 21, 25];
+let level = 1, steps = 0, seconds = 0, timer = null;
+let maze = [], player = {x:1, y:1}, exit = {x:0, y:0};
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+function generateMaze(w, h) {
+  const grid = Array.from({length: h}, () => Array(w).fill(1));
+  function carve(x, y) {
+    const dirs = shuffle([[0,-2],[0,2],[-2,0],[2,0]]);
+    for (const [dx, dy] of dirs) {
+      const nx = x + dx, ny = y + dy;
+      if (ny > 0 && ny < h && nx > 0 && nx < w && grid[ny][nx] === 1) {
+        grid[y + dy/2][x + dx/2] = 0;
+        grid[ny][nx] = 0;
+        carve(nx, ny);
+      }
+    }
+  }
+  grid[1][1] = 0;
+  carve(1, 1);
+  return grid;
+}
+
+function shuffle(arr) {
+  for (let i = arr.length-1; i > 0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+function startLevel(lvl) {
+  level = lvl;
+  steps = 0; seconds = 0;
+  clearInterval(timer);
+  document.getElementById('level').textContent = lvl;
+  document.getElementById('steps').textContent = '0';
+  document.getElementById('timer').textContent = '0:00';
+  document.getElementById('winOverlay').classList.remove('show');
+
+  const size = SIZES[Math.min(lvl-1, SIZES.length-1)];
+  const w = size, h = size;
+  maze = generateMaze(w, h);
+  player = {x:1, y:1};
+  exit = {x: w-2, y: h-2};
+  maze[exit.y][exit.x] = 0;
+
+  const maxW = Math.min(window.innerWidth - 40, 380);
+  const cell = Math.floor(maxW / w);
+  canvas.width = w * cell;
+  canvas.height = h * cell;
+
+  draw(cell);
+  timer = setInterval(() => {
+    seconds++;
+    const m = Math.floor(seconds/60), s = seconds%60;
+    document.getElementById('timer').textContent = `${m}:${s.toString().padStart(2,'0')}`;
+  }, 1000);
+
+  document.getElementById('levelInfo').textContent = `Level ${lvl} — Navigate to the 🚪 exit!`;
+}
+
+function draw(cell) {
+  if (!cell) {
+    const maxW = Math.min(window.innerWidth - 40, 380);
+    cell = Math.floor(maxW / maze[0].length);
+  }
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const h = maze.length, w = maze[0].length;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (maze[y][x] === 1) {
+        ctx.fillStyle = '#1a1a3e';
+        ctx.fillRect(x*cell, y*cell, cell, cell);
+        ctx.strokeStyle = '#0d0d1f';
+        ctx.strokeRect(x*cell, y*cell, cell, cell);
+      } else {
+        ctx.fillStyle = '#050510';
+        ctx.fillRect(x*cell, y*cell, cell, cell);
+      }
+    }
+  }
+  // Exit glow
+  ctx.fillStyle = 'rgba(245,158,11,0.2)';
+  ctx.fillRect(exit.x*cell, exit.y*cell, cell, cell);
+  ctx.font = `${cell*0.7}px serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🚪', exit.x*cell + cell/2, exit.y*cell + cell/2);
+  // Player
+  ctx.fillStyle = '#ef4444';
+  ctx.beginPath();
+  ctx.arc(player.x*cell + cell/2, player.y*cell + cell/2, cell*0.35, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = `${cell*0.5}px serif`;
+  ctx.fillText('😮', player.x*cell + cell/2, player.y*cell + cell/2 + 1);
+}
+
+function move(dx, dy) {
+  const nx = player.x + dx, ny = player.y + dy;
+  if (ny < 0 || ny >= maze.length || nx < 0 || nx >= maze[0].length) return;
+  if (maze[ny][nx] === 1) return;
+  player.x = nx; player.y = ny;
+  steps++;
+  document.getElementById('steps').textContent = steps;
+  const cell = Math.floor(canvas.width / maze[0].length);
+  draw(cell);
+  if (player.x === exit.x && player.y === exit.y) {
+    clearInterval(timer);
+    setTimeout(showWin, 300);
+  }
+}
+
+function showWin() {
+  const m = Math.floor(seconds/60), s = seconds%60;
+  document.getElementById('winStats').textContent = `${steps} steps · ${m}:${s.toString().padStart(2,'0')}`;
+  document.getElementById('winOverlay').classList.add('show');
+}
+
+function nextLevel() { startLevel(level + 1); }
+function closeWin() { startLevel(level); }
+
+document.addEventListener('keydown', e => {
+  const map = { ArrowUp:[0,-1], ArrowDown:[0,1], ArrowLeft:[-1,0], ArrowRight:[1,0], w:[0,-1], s:[0,1], a:[-1,0], d:[1,0] };
+  const dir = map[e.key];
+  if (dir) { move(...dir); e.preventDefault(); }
+});
+
+// Touch swipe
+let touchStart = null;
+canvas.addEventListener('touchstart', e => { touchStart = e.touches[0]; e.preventDefault(); }, {passive:false});
+canvas.addEventListener('touchend', e => {
+  if (!touchStart) return;
+  const dx = e.changedTouches[0].clientX - touchStart.clientX;
+  const dy = e.changedTouches[0].clientY - touchStart.clientY;
+  if (Math.abs(dx) > Math.abs(dy)) move(dx > 0 ? 1 : -1, 0);
+  else move(0, dy > 0 ? 1 : -1);
+  touchStart = null;
+  e.preventDefault();
+}, {passive:false});
+
+startLevel(1);
+</script>
+</body>
+</html>

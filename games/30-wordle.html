@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Wordle</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#080810;color:#fff;font-family:'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:14px;touch-action:manipulation}
+h1{font-size:1.8rem;background:linear-gradient(135deg,#4ade80,#22d3ee);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px;letter-spacing:3px;font-weight:900}
+.hud{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;justify-content:center}
+.stat{background:#0f0f1e;border:1px solid #1e1e38;border-radius:10px;padding:6px 14px;text-align:center;min-width:70px}
+.stat-label{font-size:.58rem;color:#6b7280;text-transform:uppercase;letter-spacing:1px}
+.stat-val{font-size:1rem;font-weight:700;color:#4ade80}
+.grid{display:grid;grid-template-rows:repeat(6,1fr);gap:6px;margin-bottom:14px}
+.row{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.tile{width:52px;height:52px;border:2px solid #2d2d4e;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:800;text-transform:uppercase;transition:all .1s;position:relative}
+.tile.filled{border-color:#4a4a7e;animation:pop .1s ease}
+@keyframes pop{0%{transform:scale(1)}50%{transform:scale(1.12)}100%{transform:scale(1)}}
+.tile.correct{background:#16653a;border-color:#4ade80;color:#fff;animation:flip .5s ease}
+.tile.present{background:#7c5a00;border-color:#f59e0b;color:#fff;animation:flip .5s ease}
+.tile.absent{background:#1e1e2e;border-color:#374151;color:#6b7280;animation:flip .5s ease}
+.tile.shake{animation:shake .4s}
+@keyframes flip{0%{transform:rotateX(0)}50%{transform:rotateX(-90deg)}100%{transform:rotateX(0)}}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
+.tile.bounce{animation:bounce .6s ease}
+@keyframes bounce{0%,100%{transform:translateY(0)}30%{transform:translateY(-20px)}60%{transform:translateY(-8px)}}
+.keyboard{display:flex;flex-direction:column;gap:5px;align-items:center;margin-bottom:10px}
+.kb-row{display:flex;gap:4px}
+.key{height:42px;min-width:32px;padding:0 6px;background:#1e1e38;border:1px solid #2d2d4e;border-radius:6px;color:#e2e8f0;font-size:.8rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;text-transform:uppercase;transition:all .15s;user-select:none}
+.key:hover{background:#2d2d4e}
+.key.wide{min-width:52px;font-size:.7rem}
+.key.correct{background:#16653a;border-color:#4ade80;color:#fff}
+.key.present{background:#7c5a00;border-color:#f59e0b;color:#fff}
+.key.absent{background:#111;border-color:#222;color:#374151}
+.msg{min-height:26px;font-size:.88rem;font-weight:700;text-align:center;margin-bottom:6px;color:#fde68a}
+.btn{border:none;color:#fff;border-radius:10px;padding:9px 22px;cursor:pointer;font-size:.85rem;font-weight:700;transition:all .2s;background:linear-gradient(135deg,#065f46,#059669)}
+.btn:hover{transform:translateY(-2px)}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:100}
+.overlay.show{display:flex}
+.ov-box{background:#0f0f1e;border:2px solid #4ade80;border-radius:20px;padding:32px;text-align:center;animation:popIn .4s ease;max-width:300px;width:90%}
+@keyframes popIn{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+.ov-emoji{font-size:3rem;display:block;margin-bottom:10px}
+.ov-title{font-size:1.7rem;color:#4ade80;margin-bottom:6px}
+.ov-word{font-size:1.6rem;font-weight:900;color:#f59e0b;letter-spacing:4px;margin-bottom:8px}
+.ov-sub{color:#9ca3af;margin-bottom:20px;font-size:.88rem}
+.stats-row{display:flex;gap:14px;justify-content:center;margin-bottom:16px}
+.ov-stat{text-align:center}
+.ov-val{font-size:1.6rem;font-weight:800;color:#4ade80}
+.ov-label{font-size:.6rem;color:#6b7280;text-transform:uppercase}
+</style>
+</head>
+<body>
+<h1>WORDLE</h1>
+<div class="hud">
+  <div class="stat"><div class="stat-label">Played</div><div class="stat-val" id="played">0</div></div>
+  <div class="stat"><div class="stat-label">Win%</div><div class="stat-val" id="winpct">0%</div></div>
+  <div class="stat"><div class="stat-label">Streak</div><div class="stat-val" id="streak">0</div></div>
+  <div class="stat"><div class="stat-label">Best</div><div class="stat-val" id="bestStreak">0</div></div>
+</div>
+<div class="msg" id="msg"></div>
+<div class="grid" id="grid"></div>
+<div class="keyboard" id="keyboard"></div>
+<button class="btn" onclick="newGame()">🔄 New Word</button>
+<div class="overlay" id="ov">
+  <div class="ov-box">
+    <span class="ov-emoji" id="ovEmoji">🎉</span>
+    <div class="ov-title" id="ovTitle">Genius!</div>
+    <div class="ov-word" id="ovWord"></div>
+    <div class="stats-row">
+      <div class="ov-stat"><div class="ov-val" id="ovPlayed">0</div><div class="ov-label">Played</div></div>
+      <div class="ov-stat"><div class="ov-val" id="ovWin">0%</div><div class="ov-label">Win%</div></div>
+      <div class="ov-stat"><div class="ov-val" id="ovStreak">0</div><div class="ov-label">Streak</div></div>
+    </div>
+    <div class="ov-sub" id="ovSub"></div>
+    <button class="btn" onclick="newGame();closeOv()">▶ Play Again</button>
+  </div>
+</div>
+<script>
+const WORDS=['APPLE','BRAVE','CLOCK','DANCE','EAGLE','FLAME','GRACE','HEART','IMAGE','JUDGE','KNIFE','LIGHT','MAGIC','NIGHT','OCEAN','PIANO','QUEEN','RIVER','SMILE','TIGER','ULTRA','VOICE','WATCH','XENON','YIELD','ZEBRA','ANGEL','BIRTH','CHAIR','DREAM','EXIST','FUNGI','GHOST','HOUSE','INDEX','JOKER','KINGS','LUNAR','MEDIA','NERVE','ORDER','PEACE','QUEST','RADIO','STORM','TRUTH','UNION','VAGUE','WORLD','OZONE','BLANK','CRISP','DWARF','FLOWN','GLOOM','HIPPO','KNACK','LYMPH','WALTZ','PERKY','CHAMP','FLINT','GRIMY','JUMPY','PLUMB','QUIRK','ZINGY','JAZZY','BUMPY','DUSTY','FIZZY','MOSSY','NOISY','RUSTY','SALTY','TANGY','WINDY','CHILLY','BRISK','CRISPY','FOGGY','GLOOMY','HASTY','ICY','JOLTY','MOODY','PEPPY','RAINY','SHAKY','THORNY','WACKY'].filter(w=>w.length===5);
+const VALID_GUESSES=new Set(WORDS);
+
+let target='',guesses=[],currentGuess='',currentRow=0,gameOver=false;
+let played=0,wins=0,streak=0,bestStreak=0;
+
+function newGame(){
+  target=WORDS[Math.floor(Math.random()*WORDS.length)];
+  guesses=[];currentGuess='';currentRow=0;gameOver=false;
+  closeOv();setMsg('');buildGrid();buildKeyboard();
+}
+
+function buildGrid(){
+  const g=document.getElementById('grid');g.innerHTML='';
+  for(let r=0;r<6;r++){
+    const row=document.createElement('div');row.className='row';
+    for(let c=0;c<5;c++){
+      const tile=document.createElement('div');tile.className='tile';tile.id=`t${r}${c}`;
+      row.appendChild(tile);
+    }
+    g.appendChild(row);
+  }
+}
+
+function buildKeyboard(){
+  const rows=['QWERTYUIOP','ASDFGHJKL','ENTER⌫ZXCVBNM'];
+  const kb=document.getElementById('keyboard');kb.innerHTML='';
+  rows.forEach(rowStr=>{
+    const row=document.createElement('div');row.className='kb-row';
+    rowStr.split('').forEach(k=>{
+      const btn=document.createElement('div');
+      btn.className='key'+(k==='ENTER'||k==='⌫'?' wide':'');
+      btn.textContent=k;btn.id='k-'+k;
+      btn.addEventListener('click',()=>handleKey(k));
+      row.appendChild(btn);
+    });
+    kb.appendChild(row);
+  });
+}
+
+function handleKey(k){
+  if(gameOver)return;
+  if(k==='⌫'||k==='Backspace'){if(currentGuess.length>0){currentGuess=currentGuess.slice(0,-1);updateRow();}}
+  else if(k==='ENTER'||k==='Enter'){submitGuess();}
+  else if(k.length===1&&k.match(/[A-Z]/i)&&currentGuess.length<5){currentGuess+=k.toUpperCase();updateRow();}
+}
+
+function updateRow(){
+  for(let c=0;c<5;c++){
+    const t=document.getElementById(`t${currentRow}${c}`);
+    t.textContent=currentGuess[c]||'';
+    t.className='tile'+(currentGuess[c]?' filled':'');
+  }
+}
+
+function submitGuess(){
+  if(currentGuess.length<5){shakeRow();setMsg('Not enough letters');setTimeout(()=>setMsg(''),1200);return;}
+  if(!VALID_GUESSES.has(currentGuess)&&!WORDS.includes(currentGuess)){
+    // Accept anyway for simplicity
+  }
+  const result=evaluate(currentGuess,target);
+  guesses.push({guess:currentGuess,result});
+  animateRow(currentRow,result,()=>{
+    updateKeyboard(currentGuess,result);
+    if(currentGuess===target){
+      gameOver=true;played++;wins++;streak++;bestStreak=Math.max(bestStreak,streak);
+      const msgs=['Genius!','Magnificent!','Impressive!','Splendid!','Great!','Phew!'];
+      setTimeout(()=>{
+        bounceRow(currentRow);
+        setTimeout(()=>showResult(true,msgs[currentRow]||'Got it!'),600);
+      },300);
+    } else if(currentRow===5){
+      gameOver=true;played++;streak=0;
+      setTimeout(()=>showResult(false),400);
+    }
+    currentRow++;currentGuess='';
+    updateHUD();
+  });
+}
+
+function evaluate(guess,target){
+  const result=Array(5).fill('absent');
+  const tArr=target.split(''),gArr=guess.split('');
+  const used=Array(5).fill(false);
+  // Correct first
+  for(let i=0;i<5;i++)if(gArr[i]===tArr[i]){result[i]='correct';used[i]=true;}
+  // Present
+  for(let i=0;i<5;i++){
+    if(result[i]==='correct')continue;
+    for(let j=0;j<5;j++){if(!used[j]&&gArr[i]===tArr[j]&&result[j]!=='correct'){result[i]='present';used[j]=true;break;}}
+  }
+  return result;
+}
+
+function animateRow(row,result,cb){
+  for(let c=0;c<5;c++){
+    const t=document.getElementById(`t${row}${c}`);
+    setTimeout(()=>{
+      t.className='tile '+result[c];
+      if(c===4)setTimeout(cb,300);
+    },c*120);
+  }
+}
+
+function bounceRow(row){
+  for(let c=0;c<5;c++){setTimeout(()=>{const t=document.getElementById(`t${row}${c}`);t.classList.add('bounce');},c*80);}
+}
+
+function shakeRow(){
+  for(let c=0;c<5;c++){const t=document.getElementById(`t${currentRow}${c}`);t.classList.add('shake');setTimeout(()=>t.classList.remove('shake'),500);}
+}
+
+function updateKeyboard(guess,result){
+  const priority={correct:3,present:2,absent:1};
+  for(let i=0;i<5;i++){
+    const k=guess[i];const key=document.getElementById('k-'+k);
+    if(!key)continue;
+    const cur=key.dataset.state||'';
+    if((priority[result[i]]||0)>(priority[cur]||0)){key.className='key '+result[i];key.dataset.state=result[i];}
+  }
+}
+
+function showResult(won){
+  const msg=won?'Solved!':'The word was:';
+  document.getElementById('ovEmoji').textContent=won?['🏆','🎉','✨','👍','😅','😮'][currentRow-1]:'😢';
+  document.getElementById('ovTitle').textContent=won?['Genius!','Magnificent!','Impressive!','Splendid!','Great!','Phew!'][currentRow-1]:'Game Over';
+  document.getElementById('ovWord').textContent=target;
+  document.getElementById('ovSub').textContent=won?`Solved in ${currentRow} guess${currentRow>1?'es':''}!`:msg;
+  document.getElementById('ovPlayed').textContent=played;
+  document.getElementById('ovWin').textContent=played?Math.round(wins/played*100)+'%':'0%';
+  document.getElementById('ovStreak').textContent=streak;
+  setTimeout(()=>document.getElementById('ov').classList.add('show'),400);
+}
+
+function updateHUD(){
+  document.getElementById('played').textContent=played;
+  document.getElementById('winpct').textContent=played?Math.round(wins/played*100)+'%':'0%';
+  document.getElementById('streak').textContent=streak;
+  document.getElementById('bestStreak').textContent=bestStreak;
+}
+
+function setMsg(m){document.getElementById('msg').textContent=m;}
+function closeOv(){document.getElementById('ov').classList.remove('show');}
+
+document.addEventListener('keydown',e=>{
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  handleKey(e.key);
+});
+
+newGame();
+</script>
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Space Invaders</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;color:#fff;font-family:'Courier New',monospace;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:10px;touch-action:none;overflow:hidden}
+h1{font-size:1.5rem;color:#4ade80;margin-bottom:6px;letter-spacing:3px;text-shadow:0 0 10px #4ade80}
+.hud{display:flex;gap:14px;margin-bottom:6px;font-size:.8rem}
+.hud span{color:#4ade80}
+canvas{border:1px solid #1a3010;display:block;background:#000508}
+.controls{display:flex;gap:10px;margin-top:10px;align-items:center}
+.ctrl-btn{background:#0a1a08;border:1px solid #1a3010;color:#4ade80;border-radius:8px;width:56px;height:46px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;cursor:pointer;user-select:none;-webkit-user-select:none;transition:background .1s}
+.ctrl-btn:active{background:#143010}
+.fire-btn{width:80px;height:46px;background:#143010;border-color:#4ade80;font-size:.8rem;font-weight:700;letter-spacing:1px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:100}
+.overlay.show{display:flex}
+.ov-box{background:#000;border:2px solid #4ade80;border-radius:4px;padding:36px;text-align:center;animation:pop .4s ease;max-width:280px;width:90%;box-shadow:0 0 40px rgba(74,222,128,.3)}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+.ov-title{font-size:1.7rem;color:#4ade80;margin-bottom:10px;letter-spacing:2px;text-shadow:0 0 10px #4ade80}
+.ov-sub{color:#6b7280;margin-bottom:20px;font-size:.85rem}
+.btn{background:#000;border:2px solid #4ade80;color:#4ade80;border-radius:4px;padding:9px 22px;cursor:pointer;font-size:.85rem;font-weight:700;letter-spacing:1px;transition:all .2s}
+.btn:hover{background:#143010}
+</style>
+</head>
+<body>
+<h1>👾 SPACE INVADERS</h1>
+<div class="hud">
+  <span>SCORE: <span id="score">0</span></span>
+  <span>BEST: <span id="best">0</span></span>
+  <span>LIVES: <span id="lives">❤️❤️❤️</span></span>
+  <span>WAVE: <span id="wave">1</span></span>
+</div>
+<canvas id="c"></canvas>
+<div class="controls">
+  <div class="ctrl-btn" id="leftBtn">◀</div>
+  <div class="ctrl-btn fire-btn" id="fireBtn">FIRE</div>
+  <div class="ctrl-btn" id="rightBtn">▶</div>
+</div>
+<div class="overlay" id="ov">
+  <div class="ov-box">
+    <div class="ov-title" id="ovTitle">GAME OVER</div>
+    <div class="ov-sub" id="ovSub"></div>
+    <button class="btn" onclick="startGame();closeOv()">▶ PLAY AGAIN</button>
+  </div>
+</div>
+<script>
+const C=document.getElementById('c'),ctx=C.getContext('2d');
+const W=Math.min(360,window.innerWidth-20),H=Math.min(480,window.innerHeight-190);
+C.width=W;C.height=H;
+const PW=40,PH=14,BULLET_SPD=8,INVADER_ROWS=4,INVADER_COLS=8;
+let player,bullets,invBullets,invaders,shields,score,best=0,lives,wave,raf;
+let invDir=1,invSpeed=0.4,invMoveTimer=0,invMoveInterval=45,invDropped=false;
+let keys={},firePressed=false,lastFire=0;
+
+const INV_TYPES=[
+  {emoji:'👾',pts:30,h:20},{emoji:'👽',pts:20,h:18},{emoji:'🛸',pts:10,h:16}
+];
+
+function startGame(){
+  score=0;lives=3;wave=1;
+  initWave();
+  cancelAnimationFrame(raf);loop();
+  document.getElementById('score').textContent=0;
+}
+
+function initWave(){
+  player={x:W/2-PW/2,y:H-40,w:PW,h:PH};
+  bullets=[];invBullets=[];
+  invDir=1;invSpeed=0.3+wave*.05;invMoveInterval=Math.max(15,50-wave*3);invMoveTimer=0;
+  const cellW=Math.floor(W*0.85/INVADER_COLS),cellH=26;
+  const startX=(W-INVADER_COLS*cellW)/2,startY=40;
+  invaders=[];
+  for(let r=0;r<INVADER_ROWS;r++)for(let c=0;c<INVADER_COLS;c++){
+    const type=r===0?0:r<2?1:2;
+    invaders.push({x:startX+c*cellW,y:startY+r*cellH,w:cellW-4,h:cellH-4,type,alive:true,frame:0});
+  }
+  // Shields
+  shields=[];const numS=3,sw=48,sh=20;
+  for(let i=0;i<numS;i++){
+    shields.push({x:(W/(numS+1))*(i+1)-sw/2,y:H-90,w:sw,h:sh,hp:8});
+  }
+  document.getElementById('wave').textContent=wave;
+}
+
+function loop(){
+  raf=requestAnimationFrame(loop);
+  update();draw();
+}
+
+function update(){
+  // Player move
+  if(keys['ArrowLeft']||keys['a'])player.x=Math.max(0,player.x-5);
+  if(keys['ArrowRight']||keys['d'])player.x=Math.min(W-PW,player.x+5);
+  // Fire
+  if((keys[' ']||firePressed)&&Date.now()-lastFire>350){
+    bullets.push({x:player.x+PW/2,y:player.y});lastFire=Date.now();
+    playTone(800,50);
+  }
+  // Move bullets
+  bullets.forEach(b=>b.y-=BULLET_SPD);bullets=bullets.filter(b=>b.y>0);
+  invBullets.forEach(b=>{b.y+=4;});invBullets=invBullets.filter(b=>b.y<H);
+  // Move invaders
+  invMoveTimer++;
+  if(invMoveTimer>=invMoveInterval){
+    invMoveTimer=0;
+    const alive=invaders.filter(i=>i.alive);
+    const minX=Math.min(...alive.map(i=>i.x));const maxX=Math.max(...alive.map(i=>i.x+i.w));
+    invDropped=false;
+    if(maxX+invSpeed*invMoveInterval>W-2){invDir=-1;invDropped=true;}
+    else if(minX+invSpeed*invMoveInterval*invDir<2){invDir=1;invDropped=true;}
+    invaders.forEach(i=>{if(!i.alive)return;i.x+=invDir*invSpeed*invMoveInterval;if(invDropped)i.y+=10;i.frame=1-i.frame;});
+    // Random invader fires
+    const shooters=alive.filter(i=>!alive.some(j=>j!==i&&j.x===i.x&&j.y>i.y));
+    if(shooters.length&&Math.random()<.3){
+      const s=shooters[Math.floor(Math.random()*shooters.length)];
+      invBullets.push({x:s.x+s.w/2,y:s.y+s.h});
+    }
+  }
+  // Bullet vs invader
+  bullets.forEach((b,bi)=>{
+    invaders.forEach(inv=>{
+      if(!inv.alive)return;
+      if(b.x>inv.x&&b.x<inv.x+inv.w&&b.y>inv.y&&b.y<inv.y+inv.h){
+        inv.alive=false;score+=INV_TYPES[inv.type].pts;
+        if(score>best)best=score;
+        bullets.splice(bi,1);
+        document.getElementById('score').textContent=score;
+        document.getElementById('best').textContent=best;
+        playTone(200,100);
+      }
+    });
+  });
+  // Bullet vs shield
+  [...bullets,...invBullets].forEach((b,bi)=>{
+    shields.forEach(sh=>{
+      if(b.x>sh.x&&b.x<sh.x+sh.w&&b.y>sh.y&&b.y<sh.y+sh.h){
+        sh.hp--;if(bullets.includes(b))bullets.splice(bullets.indexOf(b),1);
+        else invBullets.splice(invBullets.indexOf(b),1);
+      }
+    });
+  });
+  // Inv bullet vs player
+  invBullets.forEach((b,bi)=>{
+    if(b.x>player.x&&b.x<player.x+PW&&b.y>player.y&&b.y<player.y+PH){
+      invBullets.splice(bi,1);lives--;
+      document.getElementById('lives').textContent='❤️'.repeat(Math.max(0,lives))+'🖤'.repeat(Math.max(0,3-lives));
+      playTone(100,300);
+      if(lives<=0){cancelAnimationFrame(raf);document.getElementById('ovTitle').textContent='GAME OVER';document.getElementById('ovSub').textContent=`Score: ${score} · Wave: ${wave}`;document.getElementById('ov').classList.add('show');return;}
+      player.x=W/2-PW/2;
+    }
+  });
+  // Invaders reached bottom
+  if(invaders.some(i=>i.alive&&i.y+i.h>H-50)){
+    cancelAnimationFrame(raf);document.getElementById('ovTitle').textContent='INVADED!';document.getElementById('ovSub').textContent=`Score: ${score}`;document.getElementById('ov').classList.add('show');return;
+  }
+  // All invaders dead
+  if(invaders.every(i=>!i.alive)){wave++;initWave();}
+}
+
+function draw(){
+  ctx.fillStyle='#000508';ctx.fillRect(0,0,W,H);
+  // Stars
+  ctx.fillStyle='rgba(255,255,255,.4)';
+  for(let i=0;i<30;i++){const x=(i*73)%W,y=(i*137+Date.now()/20)%H;ctx.fillRect(x,y,1,1);}
+  // Shields
+  shields.forEach(sh=>{
+    if(sh.hp<=0)return;
+    const alpha=sh.hp/8;ctx.fillStyle=`rgba(74,222,128,${alpha})`;
+    ctx.beginPath();ctx.roundRect(sh.x,sh.y,sh.w,sh.h,4);ctx.fill();
+  });
+  // Invaders
+  ctx.font='16px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  invaders.forEach(inv=>{
+    if(!inv.alive)return;
+    ctx.save();
+    if(inv.frame){ctx.scale(-1,1);ctx.translate(-inv.x*2-inv.w,0);}
+    ctx.fillText(INV_TYPES[inv.type].emoji,inv.x+inv.w/2,inv.y+inv.h/2);
+    ctx.restore();
+  });
+  // Player
+  ctx.fillStyle='#4ade80';ctx.shadowColor='#4ade80';ctx.shadowBlur=8;
+  ctx.beginPath();ctx.moveTo(player.x+PW/2,player.y);ctx.lineTo(player.x+PW,player.y+PH);ctx.lineTo(player.x,player.y+PH);ctx.closePath();ctx.fill();
+  ctx.shadowBlur=0;
+  // Bullets
+  ctx.fillStyle='#fff';ctx.shadowColor='#fff';ctx.shadowBlur=6;
+  bullets.forEach(b=>{ctx.fillRect(b.x-1.5,b.y,3,10);});
+  ctx.fillStyle='#ef4444';ctx.shadowColor='#ef4444';
+  invBullets.forEach(b=>{ctx.fillRect(b.x-1.5,b.y,3,10);});
+  ctx.shadowBlur=0;
+}
+
+let audioCtx=null;
+function playTone(f,d){try{if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.connect(g);g.connect(audioCtx.destination);o.frequency.value=f;g.gain.setValueAtTime(.2,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+d/1000);o.start();o.stop(audioCtx.currentTime+d/1000);}catch(e){}}
+
+document.addEventListener('keydown',e=>{keys[e.key]=true;if(e.key===' ')e.preventDefault();});
+document.addEventListener('keyup',e=>{keys[e.key]=false;});
+document.getElementById('leftBtn').addEventListener('touchstart',e=>{keys['ArrowLeft']=true;e.preventDefault();},{passive:false});
+document.getElementById('leftBtn').addEventListener('touchend',e=>{keys['ArrowLeft']=false;});
+document.getElementById('rightBtn').addEventListener('touchstart',e=>{keys['ArrowRight']=true;e.preventDefault();},{passive:false});
+document.getElementById('rightBtn').addEventListener('touchend',e=>{keys['ArrowRight']=false;});
+document.getElementById('fireBtn').addEventListener('touchstart',e=>{firePressed=true;e.preventDefault();},{passive:false});
+document.getElementById('fireBtn').addEventListener('touchend',e=>{firePressed=false;});
+document.getElementById('fireBtn').addEventListener('mousedown',()=>firePressed=true);
+document.getElementById('fireBtn').addEventListener('mouseup',()=>firePressed=false);
+C.addEventListener('click',()=>{if(!raf)startGame();});
+function closeOv(){document.getElementById('ov').classList.remove('show');}
+startGame();
+</script>
+</body>
+</html>

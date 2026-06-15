@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Reaction Time</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#030508;color:#fff;font-family:'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px;touch-action:none;overflow:hidden}
+h1{font-size:1.8rem;background:linear-gradient(135deg,#22d3ee,#4ade80);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px}
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:360px;width:100%;margin-bottom:16px}
+.stat{background:#080c08;border:1px solid #0f1e10;border-radius:12px;padding:10px;text-align:center}
+.stat-label{font-size:.6rem;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px}
+.stat-val{font-size:1.1rem;font-weight:700;color:#4ade80}
+.reaction-box{width:min(340px,85vw);height:min(340px,85vw);border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:background .15s,box-shadow .15s;user-select:none;-webkit-user-select:none;margin-bottom:16px;position:relative;overflow:hidden}
+.reaction-box.waiting{background:#0a0f0a;border:3px solid #142014}
+.reaction-box.ready{background:#0a1e0a;border:3px solid #166534;box-shadow:0 0 40px rgba(34,197,94,.2)}
+.reaction-box.go{background:linear-gradient(135deg,#14532d,#16a34a);border:3px solid #4ade80;box-shadow:0 0 80px rgba(74,222,128,.5);animation:goGlow .3s ease}
+@keyframes goGlow{from{box-shadow:0 0 20px rgba(74,222,128,.2)}to{box-shadow:0 0 80px rgba(74,222,128,.5)}}
+.reaction-box.too-early{background:linear-gradient(135deg,#7f1d1d,#b91c1c);border:3px solid #ef4444;box-shadow:0 0 60px rgba(239,68,68,.4);animation:shake .4s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-10px)}75%{transform:translateX(10px)}}
+.reaction-box.result{background:#0a1e2a;border:3px solid #22d3ee;box-shadow:0 0 60px rgba(34,211,238,.3)}
+.box-text{font-size:1.6rem;font-weight:800;color:#fff;text-align:center;padding:20px;line-height:1.3;z-index:2}
+.box-sub{font-size:.85rem;color:rgba(255,255,255,.6);margin-top:6px}
+.result-num{font-size:3.5rem;font-weight:900;color:#22d3ee;display:block}
+.history{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:360px;margin-bottom:14px;min-height:32px}
+.hist-dot{background:#0a1e2a;border:1px solid #0f3040;border-radius:6px;padding:4px 8px;font-size:.72rem;color:#22d3ee;font-weight:600}
+.hist-dot.best{border-color:#4ade80;color:#4ade80;background:#0a1e0a}
+.rating{font-size:.95rem;font-weight:700;text-align:center;min-height:26px;margin-bottom:8px}
+.btn{background:linear-gradient(135deg,#065f46,#059669);border:none;color:#fff;border-radius:10px;padding:9px 22px;cursor:pointer;font-size:.85rem;font-weight:700;transition:all .2s}
+.btn:hover{transform:translateY(-2px)}
+.progress-bar{display:flex;gap:4px;margin-bottom:12px}
+.prog-dot{width:14px;height:14px;border-radius:50%;background:#0f1e10;transition:background .3s}
+.prog-dot.done{background:#4ade80}
+.prog-dot.current{background:#22d3ee;box-shadow:0 0 8px #22d3ee}
+</style>
+</head>
+<body>
+<h1>⚡ Reaction Time</h1>
+<div class="stats-grid">
+  <div class="stat"><div class="stat-label">Best</div><div class="stat-val" id="best">—</div></div>
+  <div class="stat"><div class="stat-label">Average</div><div class="stat-val" id="avg">—</div></div>
+  <div class="stat"><div class="stat-label">Last</div><div class="stat-val" id="last">—</div></div>
+</div>
+<div class="progress-bar" id="progressBar"></div>
+<div class="reaction-box waiting" id="box" onclick="handleClick()">
+  <div class="box-text" id="boxText">Tap to Start</div>
+</div>
+<div class="rating" id="rating"></div>
+<div class="history" id="history"></div>
+<button class="btn" onclick="resetAll()" style="margin-top:4px">🔄 Reset</button>
+<script>
+const ROUNDS=5;
+let state='idle',timeout=null,startTime=0,results=[],round=0,allBests=[];
+
+function getRating(ms){
+  if(ms<150)return{text:'⚡ Superhuman!',color:'#fde68a'};
+  if(ms<200)return{text:'🚀 Incredible!',color:'#4ade80'};
+  if(ms<250)return{text:'✨ Excellent!',color:'#22d3ee'};
+  if(ms<300)return{text:'👍 Great!',color:'#60a5fa'};
+  if(ms<400)return{text:'😊 Good',color:'#a78bfa'};
+  if(ms<500)return{text:'🙂 Average',color:'#f59e0b'};
+  return{text:'🐢 Keep Practicing',color:'#ef4444'};
+}
+
+function handleClick(){
+  const box=document.getElementById('box');
+  if(state==='idle'){
+    // Start sequence
+    round=0;results=[];renderProgress();startRound();
+  } else if(state==='waiting'){
+    // Too early!
+    state='tooearly';clearTimeout(timeout);
+    box.className='reaction-box too-early';
+    setBoxText('Too Early! 😬','Wait for GREEN');
+    setRating('❌ Jumped the gun! Try again.','#ef4444');
+    timeout=setTimeout(()=>startRound(),1500);
+  } else if(state==='go'){
+    // Measure
+    const ms=Date.now()-startTime;
+    results.push(ms);round++;
+    state='result';
+    box.className='reaction-box result';
+    setBoxText(`<span class="result-num">${ms}ms</span>`,`${getRating(ms).text}`);
+    const r=getRating(ms);setRating(r.text,r.color);
+    allBests.push(ms);updateGlobalStats();
+    addHistory(ms,results);renderProgress();
+    if(round<ROUNDS){timeout=setTimeout(()=>startRound(),1200);}
+    else{timeout=setTimeout(()=>showFinal(),1400);}
+  } else if(state==='result'||state==='final'){
+    // skip
+  }
+}
+
+function startRound(){
+  const box=document.getElementById('box');
+  state='ready';
+  box.className='reaction-box ready';
+  setBoxText(`Round ${round+1} of ${ROUNDS}`,'Get Ready...');
+  setRating('','');
+  const delay=1000+Math.random()*3000;
+  timeout=setTimeout(()=>{
+    state='go';startTime=Date.now();
+    box.className='reaction-box go';
+    setBoxText('TAP NOW!','Go Go Go!');
+  },delay);
+}
+
+function showFinal(){
+  const box=document.getElementById('box');
+  state='final';
+  const avg=Math.round(results.reduce((a,b)=>a+b,0)/results.length);
+  const best=Math.min(...results);
+  const r=getRating(avg);
+  box.className='reaction-box result';
+  setBoxText(`Avg: ${avg}ms · Best: ${best}ms`,`${r.text} — Tap to play again`);
+  setRating(r.text,r.color);
+  box.onclick=()=>{state='idle';handleClick();};
+}
+
+function setBoxText(main,sub=''){
+  document.getElementById('boxText').innerHTML=`${main}${sub?`<div class="box-sub">${sub}</div>`:''}`;
+}
+function setRating(text,color){
+  const el=document.getElementById('rating');el.textContent=text;el.style.color=color;
+}
+
+function addHistory(ms){
+  const h=document.getElementById('history');
+  const dot=document.createElement('div');
+  const isBest=allBests.length>1&&ms===Math.min(...allBests);
+  dot.className='hist-dot'+(isBest?' best':'');
+  dot.textContent=ms+'ms';
+  h.appendChild(dot);
+  if(h.children.length>20)h.removeChild(h.firstChild);
+}
+
+function updateGlobalStats(){
+  if(!allBests.length)return;
+  const best=Math.min(...allBests);
+  const avg=Math.round(allBests.reduce((a,b)=>a+b,0)/allBests.length);
+  const last=allBests[allBests.length-1];
+  document.getElementById('best').textContent=best+'ms';
+  document.getElementById('avg').textContent=avg+'ms';
+  document.getElementById('last').textContent=last+'ms';
+}
+
+function renderProgress(){
+  const el=document.getElementById('progressBar');el.innerHTML='';
+  for(let i=0;i<ROUNDS;i++){
+    const d=document.createElement('div');
+    d.className='prog-dot'+(i<round?' done':i===round?' current':'');
+    el.appendChild(d);
+  }
+}
+
+function resetAll(){
+  clearTimeout(timeout);state='idle';round=0;results=[];allBests=[];
+  const box=document.getElementById('box');box.className='reaction-box waiting';
+  box.onclick=handleClick;
+  setBoxText('Tap to Start');setRating('','');
+  document.getElementById('history').innerHTML='';
+  document.getElementById('best').textContent='—';
+  document.getElementById('avg').textContent='—';
+  document.getElementById('last').textContent='—';
+  renderProgress();
+}
+
+renderProgress();
+</script>
+</body>
+</html>

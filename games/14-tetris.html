@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Tetris</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#050510;color:#fff;font-family:'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:12px;touch-action:none}
+h1{font-size:1.7rem;background:linear-gradient(135deg,#06b6d4,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;letter-spacing:3px}
+.layout{display:flex;gap:12px;align-items:flex-start;justify-content:center;flex-wrap:wrap}
+canvas{border:2px solid #1e1e38;border-radius:8px;display:block}
+.side{display:flex;flex-direction:column;gap:10px;min-width:90px}
+.panel{background:#0a0a1a;border:1px solid #1e1e38;border-radius:10px;padding:10px;text-align:center}
+.panel-label{font-size:.58rem;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.panel-val{font-size:1.1rem;font-weight:800;color:#06b6d4}
+.next-canvas{display:block;margin:0 auto}
+.dpad{display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(3,48px);gap:4px;margin-top:10px}
+.dp{background:#0a0a1a;border:1px solid #1e1e38;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;cursor:pointer;user-select:none;transition:background .1s}
+.dp:active,.dp.pressed{background:#1e1e38}
+.up{grid-column:2;grid-row:1}.left{grid-column:1;grid-row:2}.down{grid-column:2;grid-row:2}.right{grid-column:3;grid-row:2}.rot{grid-column:2;grid-row:2;background:#1a0a2a;border-color:#3a1a5a;font-size:.7rem;color:#a78bfa;font-weight:700}
+.btn{background:linear-gradient(135deg,#0e7490,#0891b2);border:none;color:#fff;border-radius:8px;padding:8px 18px;cursor:pointer;font-size:.82rem;font-weight:700;transition:all .2s;width:100%}
+.btn:hover{transform:translateY(-1px)}
+.btn.danger{background:linear-gradient(135deg,#7f1d1d,#b91c1c)}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;z-index:100}
+.overlay.show{display:flex}
+.ov-box{background:#0a0a1a;border:2px solid #06b6d4;border-radius:20px;padding:36px;text-align:center;animation:pop .4s ease;max-width:280px;width:90%}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+.ov-emoji{font-size:3rem;display:block;margin-bottom:10px}
+.ov-title{font-size:1.7rem;color:#06b6d4;margin-bottom:6px}
+.ov-sub{color:#9ca3af;margin-bottom:20px;font-size:.9rem}
+</style>
+</head>
+<body>
+<h1>TETRIS</h1>
+<div class="layout">
+  <div class="side">
+    <div class="panel"><div class="panel-label">Score</div><div class="panel-val" id="score">0</div></div>
+    <div class="panel"><div class="panel-label">Best</div><div class="panel-val" id="best">0</div></div>
+    <div class="panel"><div class="panel-label">Level</div><div class="panel-val" id="level">1</div></div>
+    <div class="panel"><div class="panel-label">Lines</div><div class="panel-val" id="lines">0</div></div>
+    <button class="btn" onclick="startGame()" style="margin-top:4px">New</button>
+    <button class="btn danger" onclick="togglePause()" id="pauseBtn">Pause</button>
+  </div>
+  <canvas id="c"></canvas>
+  <div class="side">
+    <div class="panel"><div class="panel-label">Next</div><canvas class="next-canvas" id="next" width="80" height="80"></canvas></div>
+    <div class="panel"><div class="panel-label">Hold</div><canvas class="next-canvas" id="hold" width="80" height="80"></canvas></div>
+  </div>
+</div>
+<div class="dpad">
+  <div class="dp up" ontouchstart="inp('rotCW');ev(event)" onmousedown="inp('rotCW')">↻</div>
+  <div class="dp left" ontouchstart="inp('left');ev(event)" onmousedown="inp('left')">←</div>
+  <div class="dp down" ontouchstart="inp('down');ev(event)" onmousedown="inp('down')">↓</div>
+  <div class="dp right" ontouchstart="inp('right');ev(event)" onmousedown="inp('right')">→</div>
+</div>
+<div class="overlay" id="ov">
+  <div class="ov-box">
+    <span class="ov-emoji">🎮</span>
+    <div class="ov-title" id="ovTitle">Game Over</div>
+    <div class="ov-sub" id="ovSub"></div>
+    <button class="btn" onclick="startGame();closeOv()">▶ Play Again</button>
+  </div>
+</div>
+<script>
+const COLS=10,ROWS=20;
+const CELL=Math.min(28,Math.floor((window.innerHeight-320)/ROWS));
+const C=document.getElementById('c'),ctx=C.getContext('2d');
+C.width=COLS*CELL;C.height=ROWS*CELL;
+
+const PIECES=[
+  {shape:[[1,1,1,1]],color:'#06b6d4'},           // I
+  {shape:[[1,1],[1,1]],color:'#facc15'},           // O
+  {shape:[[0,1,0],[1,1,1]],color:'#a855f7'},       // T
+  {shape:[[0,1,1],[1,1,0]],color:'#22c55e'},       // S
+  {shape:[[1,1,0],[0,1,1]],color:'#ef4444'},       // Z
+  {shape:[[1,0,0],[1,1,1]],color:'#3b82f6'},       // J
+  {shape:[[0,0,1],[1,1,1]],color:'#f97316'},       // L
+];
+
+let board,cur,next,holdPiece,canHold,score,best=0,level,lines,falling,paused,gameRunning;
+let dropTimer,dropInterval=800;
+let ts=null;
+
+function rotate(mat){return mat[0].map((_,i)=>mat.map(r=>r[i]).reverse());}
+function randPiece(){const p=PIECES[Math.floor(Math.random()*PIECES.length)];return{shape:p.shape.map(r=>[...r]),color:p.color,x:Math.floor(COLS/2)-Math.floor(p.shape[0].length/2),y:0};}
+
+function startGame(){
+  board=Array.from({length:ROWS},()=>Array(COLS).fill(null));
+  score=0;level=1;lines=0;paused=false;gameRunning=true;canHold=true;holdPiece=null;
+  cur=randPiece();next=randPiece();
+  dropInterval=800;
+  document.getElementById('score').textContent=0;
+  document.getElementById('level').textContent=1;
+  document.getElementById('lines').textContent=0;
+  closeOv();clearInterval(dropTimer);
+  dropTimer=setInterval(()=>{if(!paused)drop();},dropInterval);
+  draw();drawNext();drawHold();
+}
+
+function valid(shape,x,y){
+  return shape.every((row,dr)=>row.every((v,dc)=>{
+    if(!v)return true;
+    const nx=x+dc,ny=y+dr;
+    return nx>=0&&nx<COLS&&ny>=0&&ny<ROWS&&!board[ny][nx];
+  }));
+}
+
+function place(){
+  cur.shape.forEach((row,dr)=>row.forEach((v,dc)=>{if(v)board[cur.y+dr][cur.x+dc]=cur.color;}));
+  clearLines();
+  cur=next;next=randPiece();canHold=true;
+  if(!valid(cur.shape,cur.x,cur.y)){gameOver();return;}
+  drawNext();draw();
+}
+
+function clearLines(){
+  let cleared=0;
+  for(let r=ROWS-1;r>=0;r--){
+    if(board[r].every(c=>c)){board.splice(r,1);board.unshift(Array(COLS).fill(null));cleared++;r++;}
+  }
+  if(cleared){
+    const pts=[0,100,300,500,800][cleared]*level;
+    score+=pts;lines+=cleared;
+    level=Math.floor(lines/10)+1;
+    dropInterval=Math.max(100,800-level*60);
+    clearInterval(dropTimer);dropTimer=setInterval(()=>{if(!paused)drop();},dropInterval);
+    document.getElementById('score').textContent=score;
+    document.getElementById('lines').textContent=lines;
+    document.getElementById('level').textContent=level;
+    if(score>best){best=score;document.getElementById('best').textContent=best;}
+  }
+}
+
+function drop(){if(!valid(cur.shape,cur.x,cur.y+1))place();else{cur.y++;draw();}}
+function hardDrop(){while(valid(cur.shape,cur.x,cur.y+1))cur.y++;score+=2;place();}
+function moveLeft(){if(valid(cur.shape,cur.x-1,cur.y)){cur.x--;draw();}}
+function moveRight(){if(valid(cur.shape,cur.x+1,cur.y)){cur.x++;draw();}}
+function rotCW(){const r=rotate(cur.shape);if(valid(r,cur.x,cur.y)){cur.shape=r;draw();}else if(valid(r,cur.x-1,cur.y)){cur.x--;cur.shape=r;draw();}else if(valid(r,cur.x+1,cur.y)){cur.x++;cur.shape=r;draw();}}
+
+function holdSwap(){
+  if(!canHold)return;canHold=false;
+  const tmp=holdPiece;
+  holdPiece={shape:cur.shape.map(r=>[...r]),color:cur.color};
+  if(tmp){cur={...tmp,x:Math.floor(COLS/2)-Math.floor(tmp.shape[0].length/2),y:0};}
+  else{cur=next;next=randPiece();}
+  drawHold();drawNext();draw();
+}
+
+function ghostY(){
+  let gy=cur.y;
+  while(valid(cur.shape,cur.x,gy+1))gy++;
+  return gy;
+}
+
+function draw(){
+  ctx.fillStyle='#050510';ctx.fillRect(0,0,C.width,C.height);
+  // Grid
+  ctx.strokeStyle='rgba(255,255,255,.04)';ctx.lineWidth=1;
+  for(let r=0;r<ROWS;r++){ctx.beginPath();ctx.moveTo(0,r*CELL);ctx.lineTo(C.width,r*CELL);ctx.stroke();}
+  for(let c=0;c<COLS;c++){ctx.beginPath();ctx.moveTo(c*CELL,0);ctx.lineTo(c*CELL,C.height);ctx.stroke();}
+  // Board
+  board.forEach((row,r)=>row.forEach((col,c)=>{if(col)drawCell(ctx,c,r,col);}));
+  // Ghost
+  const gy=ghostY();
+  cur.shape.forEach((row,dr)=>row.forEach((v,dc)=>{
+    if(v){ctx.fillStyle='rgba(255,255,255,.12)';ctx.fillRect((cur.x+dc)*CELL+1,(gy+dr)*CELL+1,CELL-2,CELL-2);}
+  }));
+  // Current
+  cur.shape.forEach((row,dr)=>row.forEach((v,dc)=>{if(v)drawCell(ctx,cur.x+dc,cur.y+dr,cur.color);}));
+  // Paused
+  if(paused){ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(0,0,C.width,C.height);ctx.fillStyle='#fff';ctx.font='bold 1.4rem Segoe UI';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('PAUSED',C.width/2,C.height/2);}
+}
+
+function drawCell(c,x,y,col){
+  c.fillStyle=col;c.shadowColor=col;c.shadowBlur=6;
+  c.fillRect(x*CELL+1,y*CELL+1,CELL-2,CELL-2);
+  c.shadowBlur=0;
+  c.fillStyle='rgba(255,255,255,.18)';c.fillRect(x*CELL+2,y*CELL+2,CELL-4,4);
+}
+
+function drawMini(canvas,shape,color){
+  const mc=canvas.getContext('2d');mc.fillStyle='#0a0a1a';mc.fillRect(0,0,80,80);
+  if(!shape)return;
+  const cs=16,ox=Math.floor((80-shape[0].length*cs)/2),oy=Math.floor((80-shape.length*cs)/2);
+  shape.forEach((row,dr)=>row.forEach((v,dc)=>{
+    if(v){mc.fillStyle=color;mc.shadowColor=color;mc.shadowBlur=6;mc.fillRect(ox+dc*cs+1,oy+dr*cs+1,cs-2,cs-2);mc.shadowBlur=0;}
+  }));
+}
+
+function drawNext(){drawMini(document.getElementById('next'),next?.shape,next?.color);}
+function drawHold(){drawMini(document.getElementById('hold'),holdPiece?.shape,holdPiece?.color);}
+
+function togglePause(){
+  paused=!paused;
+  document.getElementById('pauseBtn').textContent=paused?'Resume':'Pause';
+  draw();
+}
+
+function gameOver(){
+  gameRunning=false;clearInterval(dropTimer);
+  if(score>best){best=score;document.getElementById('best').textContent=best;}
+  document.getElementById('ovTitle').textContent=score>0?'Game Over!':'Game Over';
+  document.getElementById('ovSub').textContent=`Score: ${score} · Level: ${level} · Lines: ${lines}`;
+  document.getElementById('ov').classList.add('show');
+}
+
+function inp(action){
+  if(!gameRunning){startGame();return;}
+  if(paused&&action!=='pause')return;
+  if(action==='left')moveLeft();
+  else if(action==='right')moveRight();
+  else if(action==='down'){drop();score++;document.getElementById('score').textContent=score;}
+  else if(action==='rotCW')rotCW();
+  else if(action==='hardDrop')hardDrop();
+  else if(action==='hold')holdSwap();
+  else if(action==='pause')togglePause();
+}
+function ev(e){e.preventDefault();}
+function closeOv(){document.getElementById('ov').classList.remove('show');}
+
+document.addEventListener('keydown',e=>{
+  const map={ArrowLeft:'left',ArrowRight:'right',ArrowDown:'down',ArrowUp:'rotCW',' ':'hardDrop',c:'hold',C:'hold',p:'pause',P:'pause'};
+  if(map[e.key]){inp(map[e.key]);e.preventDefault();}
+});
+
+// Swipe
+C.addEventListener('touchstart',e=>{ts={x:e.touches[0].clientX,y:e.touches[0].clientY,t:Date.now()};e.preventDefault();},{passive:false});
+C.addEventListener('touchend',e=>{
+  if(!ts)return;
+  const dx=e.changedTouches[0].clientX-ts.x,dy=e.changedTouches[0].clientY-ts.y,dt=Date.now()-ts.t;
+  if(Math.abs(dx)<10&&Math.abs(dy)<10&&dt<200){rotCW();}
+  else if(Math.abs(dx)>Math.abs(dy)){if(dx>20)inp('right');else if(dx<-20)inp('left');}
+  else{if(dy>20)inp('hardDrop');else inp('rotCW');}
+  ts=null;e.preventDefault();
+},{passive:false});
+
+startGame();
+</script>
+</body>
+</html>

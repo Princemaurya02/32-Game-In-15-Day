@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pattern Memory</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #050010; color: #fff; font-family: 'Segoe UI', sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+  h1 { font-size: 1.8rem; background: linear-gradient(135deg, #a855f7, #06b6d4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 12px; }
+  .hud { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; justify-content: center; }
+  .stat { background: #0a001a; border: 1px solid #1e004a; border-radius: 10px; padding: 8px 16px; text-align: center; min-width: 80px; }
+  .stat-label { font-size: 0.62rem; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; }
+  .stat-val { font-size: 1.2rem; font-weight: 700; color: #a855f7; }
+  .status-msg { font-size: 1rem; color: #9ca3af; margin-bottom: 16px; min-height: 28px; text-align: center; transition: all .3s; }
+  .status-msg.show { color: #a855f7; }
+  .game-area { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; max-width: 320px; width: 100%; margin-bottom: 24px; }
+  .pad { border-radius: 20px; aspect-ratio: 1; cursor: pointer; transition: filter .1s, transform .1s; position: relative; overflow: hidden; user-select: none; }
+  .pad::after { content: ''; position: absolute; inset: 0; background: white; opacity: 0; border-radius: 20px; transition: opacity .1s; }
+  .pad.lit::after { opacity: 0.4; }
+  .pad.active::after { opacity: 0.5; }
+  .pad:active { transform: scale(0.94); }
+  .pad.disabled { cursor: not-allowed; }
+  #pad0 { background: radial-gradient(ellipse at 30% 30%, #ff6b6b, #dc2626); box-shadow: 0 0 30px rgba(220,38,38,0.3); }
+  #pad1 { background: radial-gradient(ellipse at 30% 30%, #4ade80, #16a34a); box-shadow: 0 0 30px rgba(22,163,74,0.3); }
+  #pad2 { background: radial-gradient(ellipse at 30% 30%, #60a5fa, #2563eb); box-shadow: 0 0 30px rgba(37,99,235,0.3); }
+  #pad3 { background: radial-gradient(ellipse at 30% 30%, #facc15, #d97706); box-shadow: 0 0 30px rgba(217,119,6,0.3); }
+  #pad0.lit { box-shadow: 0 0 50px rgba(220,38,38,0.8), 0 0 100px rgba(220,38,38,0.4); }
+  #pad1.lit { box-shadow: 0 0 50px rgba(22,163,74,0.8), 0 0 100px rgba(22,163,74,0.4); }
+  #pad2.lit { box-shadow: 0 0 50px rgba(37,99,235,0.8), 0 0 100px rgba(37,99,235,0.4); }
+  #pad3.lit { box-shadow: 0 0 50px rgba(217,119,6,0.8), 0 0 100px rgba(217,119,6,0.4); }
+  .pad-icon { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; opacity: 0.6; }
+  .combo-display { font-size: 0.9rem; color: #7c3aed; font-weight: 600; min-height: 24px; text-align: center; margin-bottom: 8px; }
+  .progress-bar { width: 300px; max-width: 90vw; height: 6px; background: #1e004a; border-radius: 3px; margin-bottom: 16px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, #a855f7, #06b6d4); border-radius: 3px; transition: width .3s; }
+  .btn { background: linear-gradient(135deg, #6d28d9, #4f46e5); border: none; color: #fff; border-radius: 10px; padding: 10px 28px; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all .2s; }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(109,40,217,0.4); }
+  .win-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; align-items: center; justify-content: center; z-index: 100; }
+  .win-overlay.show { display: flex; }
+  .win-box { background: #0a001a; border: 2px solid #a855f7; border-radius: 20px; padding: 36px; text-align: center; animation: popIn .5s ease; }
+  @keyframes popIn { from{transform:scale(0.5);opacity:0} to{transform:scale(1);opacity:1} }
+  .win-emoji { font-size: 3.5rem; display: block; margin-bottom: 12px; }
+  .win-title { font-size: 1.8rem; background: linear-gradient(135deg, #a855f7, #06b6d4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+  .win-stats { color: #9ca3af; margin-bottom: 20px; }
+  .best-tag { display: inline-block; background: #2d1f3a; border-radius: 20px; padding: 2px 10px; font-size: 0.75rem; color: #c4b5fd; margin-top: 6px; }
+</style>
+</head>
+<body>
+<h1>🧠 Pattern Memory</h1>
+<div class="hud">
+  <div class="stat"><div class="stat-label">Round</div><div class="stat-val" id="round">0</div></div>
+  <div class="stat"><div class="stat-label">Score</div><div class="stat-val" id="score">0</div></div>
+  <div class="stat"><div class="stat-label">Best</div><div class="stat-val" id="best">0</div></div>
+  <div class="stat"><div class="stat-label">Combo</div><div class="stat-val" id="combo">x1</div></div>
+</div>
+<div class="status-msg" id="status">Press Start to play</div>
+<div class="combo-display" id="comboMsg"></div>
+<div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+<div class="game-area">
+  <div class="pad disabled" id="pad0"><div class="pad-icon">❤️</div></div>
+  <div class="pad disabled" id="pad1"><div class="pad-icon">☘️</div></div>
+  <div class="pad disabled" id="pad2"><div class="pad-icon">💙</div></div>
+  <div class="pad disabled" id="pad3"><div class="pad-icon">⭐</div></div>
+</div>
+<button class="btn" id="startBtn" onclick="startGame()">▶ Start Game</button>
+
+<div class="win-overlay" id="winOverlay">
+  <div class="win-box">
+    <span class="win-emoji" id="winEmoji">🎊</span>
+    <div class="win-title" id="winTitle">Game Over</div>
+    <div class="win-stats" id="winStats"></div>
+    <button class="btn" onclick="closeWin()">Play Again</button>
+  </div>
+</div>
+
+<script>
+const SOUNDS = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5
+let sequence = [], playerSeq = [], round = 0, score = 0, combo = 1, bestScore = 0;
+let isShowing = false, playerTurn = false;
+let audioCtx = null;
+
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playTone(freq, duration = 300) {
+  try {
+    const ac = getAudio();
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.connect(gain);
+    gain.connect(ac.destination);
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.3, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + duration/1000);
+    osc.start();
+    osc.stop(ac.currentTime + duration/1000);
+  } catch(e) {}
+}
+
+function playError() {
+  try {
+    const ac = getAudio();
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.connect(gain);
+    gain.connect(ac.destination);
+    osc.type = 'sawtooth';
+    osc.frequency.value = 150;
+    gain.gain.setValueAtTime(0.2, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.5);
+    osc.start();
+    osc.stop(ac.currentTime + 0.5);
+  } catch(e) {}
+}
+
+function startGame() {
+  sequence = []; playerSeq = []; round = 0; score = 0; combo = 1;
+  document.getElementById('score').textContent = '0';
+  document.getElementById('combo').textContent = 'x1';
+  document.getElementById('comboMsg').textContent = '';
+  document.getElementById('startBtn').disabled = true;
+  document.getElementById('winOverlay').classList.remove('show');
+  nextRound();
+}
+
+function nextRound() {
+  round++;
+  playerSeq = [];
+  playerTurn = false;
+  document.getElementById('round').textContent = round;
+  document.getElementById('progressFill').style.width = '0%';
+  sequence.push(Math.floor(Math.random() * 4));
+  setStatus('👀 Watch the pattern...', true);
+  disablePads();
+  setTimeout(() => showSequence(), 600);
+}
+
+function showSequence() {
+  isShowing = true;
+  const speed = Math.max(300, 600 - round * 20);
+  let i = 0;
+  function next() {
+    if (i >= sequence.length) {
+      isShowing = false;
+      setTimeout(() => {
+        enablePads();
+        playerTurn = true;
+        setStatus(`🎮 Your turn! ${sequence.length} steps`, true);
+      }, 400);
+      return;
+    }
+    const pad = sequence[i];
+    flashPad(pad, speed * 0.6);
+    playTone(SOUNDS[pad], speed * 0.6);
+    i++;
+    setTimeout(next, speed);
+  }
+  next();
+}
+
+function flashPad(idx, duration) {
+  const el = document.getElementById(`pad${idx}`);
+  el.classList.add('lit');
+  setTimeout(() => el.classList.remove('lit'), duration);
+}
+
+function onPadClick(idx) {
+  if (!playerTurn || isShowing) return;
+  flashPad(idx, 200);
+  playTone(SOUNDS[idx], 200);
+  document.getElementById(`pad${idx}`).classList.add('active');
+  setTimeout(() => document.getElementById(`pad${idx}`).classList.remove('active'), 200);
+
+  playerSeq.push(idx);
+  const pos = playerSeq.length - 1;
+  document.getElementById('progressFill').style.width = `${(playerSeq.length / sequence.length * 100)}%`;
+
+  if (playerSeq[pos] !== sequence[pos]) {
+    // Wrong
+    playError();
+    combo = 1;
+    disablePads();
+    playerTurn = false;
+    setStatus('❌ Wrong! Game Over', false);
+    setTimeout(endGame, 800);
+    return;
+  }
+
+  if (playerSeq.length === sequence.length) {
+    // Correct!
+    playerTurn = false;
+    disablePads();
+    score += round * combo * 10;
+    combo++;
+    document.getElementById('score').textContent = score;
+    document.getElementById('combo').textContent = `x${combo}`;
+    document.getElementById('comboMsg').textContent = combo > 2 ? `🔥 ${combo}x Combo!` : '';
+    setStatus(`✅ Perfect! +${round * (combo-1) * 10}`, true);
+    setTimeout(() => nextRound(), 900);
+  }
+}
+
+function endGame() {
+  if (score > bestScore) { bestScore = score; document.getElementById('best').textContent = bestScore; }
+  document.getElementById('winEmoji').textContent = score > 100 ? '🏆' : '💪';
+  document.getElementById('winTitle').textContent = round > 5 ? 'Great Memory!' : 'Game Over';
+  document.getElementById('winStats').textContent = `Round ${round} · Score: ${score} · Best combo: x${combo}`;
+  document.getElementById('winOverlay').classList.add('show');
+  document.getElementById('startBtn').disabled = false;
+}
+
+function closeWin() {
+  document.getElementById('winOverlay').classList.remove('show');
+  startGame();
+}
+
+function setStatus(msg, highlight) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.classList.toggle('show', !!highlight);
+}
+
+function enablePads() {
+  for (let i = 0; i < 4; i++) document.getElementById(`pad${i}`).classList.remove('disabled');
+}
+function disablePads() {
+  for (let i = 0; i < 4; i++) document.getElementById(`pad${i}`).classList.add('disabled');
+}
+
+for (let i = 0; i < 4; i++) {
+  const pad = document.getElementById(`pad${i}`);
+  const idx = i;
+  pad.addEventListener('click', () => onPadClick(idx));
+  pad.addEventListener('touchstart', e => { e.preventDefault(); onPadClick(idx); }, {passive:false});
+}
+</script>
+</body>
+</html>

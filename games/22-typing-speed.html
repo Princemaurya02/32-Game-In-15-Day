@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Typing Speed</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#06070f;color:#fff;font-family:'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px;touch-action:manipulation}
+h1{font-size:1.7rem;background:linear-gradient(135deg,#38bdf8,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px}
+.hud{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;justify-content:center}
+.stat{background:#0d0e1c;border:1px solid #1a1d35;border-radius:10px;padding:8px 16px;text-align:center;min-width:80px}
+.stat-label{font-size:.6rem;color:#6b7280;text-transform:uppercase;letter-spacing:1px}
+.stat-val{font-size:1.1rem;font-weight:700;color:#38bdf8}
+.timer-bar{width:min(400px,90vw);height:8px;background:#1a1d35;border-radius:4px;margin-bottom:16px;overflow:hidden}
+.timer-fill{height:100%;background:linear-gradient(90deg,#38bdf8,#818cf8);border-radius:4px;transition:width .1s linear}
+.text-display{background:#0d0e1c;border:1px solid #1a1d35;border-radius:12px;padding:16px;font-size:1.1rem;line-height:1.8;max-width:500px;width:100%;margin-bottom:12px;min-height:80px;position:relative;letter-spacing:.5px}
+.char{transition:color .05s}
+.char.correct{color:#4ade80}
+.char.wrong{color:#f87171;background:#3b0a0a;border-radius:2px}
+.char.current{border-left:2px solid #38bdf8;animation:blink .6s infinite}
+@keyframes blink{0%,100%{border-color:#38bdf8}50%{border-color:transparent}}
+.char.pending{color:#4b5563}
+input[type=text]{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
+.type-hint{color:#4b5563;font-size:.8rem;text-align:center;margin-bottom:8px}
+.diff-bar{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;justify-content:center}
+.diff-btn{background:#0d0e1c;border:1px solid #1a1d35;color:#9ca3af;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:.75rem;transition:all .2s}
+.diff-btn.active{background:#0c2a4a;border-color:#38bdf8;color:#7dd3fc}
+.btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.btn{border:none;color:#fff;border-radius:10px;padding:9px 22px;cursor:pointer;font-size:.85rem;font-weight:700;transition:all .2s}
+.btn-start{background:linear-gradient(135deg,#0c2a4a,#0369a1)}
+.btn-retry{background:#1a1d35}
+.btn:hover{transform:translateY(-2px)}
+.results{background:#0d0e1c;border:1px solid #1a1d35;border-radius:14px;padding:20px;max-width:400px;width:100%;margin-top:14px;display:none}
+.results.show{display:block}
+.result-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.result-item{text-align:center}
+.result-val{font-size:1.8rem;font-weight:800;background:linear-gradient(135deg,#38bdf8,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.result-label{font-size:.65rem;color:#6b7280;text-transform:uppercase;letter-spacing:1px}
+.accuracy-bar{height:8px;background:#1a1d35;border-radius:4px;overflow:hidden;margin:4px 0}
+.accuracy-fill{height:100%;background:linear-gradient(90deg,#4ade80,#22c55e);border-radius:4px;transition:width .8s ease}
+</style>
+</head>
+<body>
+<h1>⌨️ Typing Speed</h1>
+<div class="hud">
+  <div class="stat"><div class="stat-label">WPM</div><div class="stat-val" id="wpm">0</div></div>
+  <div class="stat"><div class="stat-label">Best WPM</div><div class="stat-val" id="bestWpm">0</div></div>
+  <div class="stat"><div class="stat-label">Accuracy</div><div class="stat-val" id="accuracy">100%</div></div>
+  <div class="stat"><div class="stat-label">Streak</div><div class="stat-val" id="streak">0</div></div>
+</div>
+<div class="timer-bar"><div class="timer-fill" id="timerFill" style="width:100%"></div></div>
+<div class="diff-bar">
+  <button class="diff-btn active" onclick="setDiff(60,'easy',this)">60s Easy</button>
+  <button class="diff-btn" onclick="setDiff(60,'normal',this)">60s Normal</button>
+  <button class="diff-btn" onclick="setDiff(30,'hard',this)">30s Hard</button>
+  <button class="diff-btn" onclick="setDiff(15,'insane',this)">15s Insane</button>
+</div>
+<div class="type-hint" id="typeHint">Click the text below and start typing!</div>
+<div class="text-display" id="textDisplay" onclick="focusInput()"></div>
+<input type="text" id="hiddenInput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+<div class="btns">
+  <button class="btn btn-start" onclick="startTest()">▶ Start</button>
+  <button class="btn btn-retry" onclick="startTest()">🔄 Retry</button>
+</div>
+<div class="results" id="results">
+  <div class="result-grid">
+    <div class="result-item"><div class="result-val" id="resWpm">0</div><div class="result-label">WPM</div></div>
+    <div class="result-item"><div class="result-val" id="resAcc">0%</div><div class="result-label">Accuracy</div></div>
+    <div class="result-item"><div class="result-val" id="resCorrect">0</div><div class="result-label">Correct</div></div>
+    <div class="result-item"><div class="result-val" id="resErrors">0</div><div class="result-label">Errors</div></div>
+  </div>
+  <div class="result-label" style="margin-bottom:4px">Accuracy</div>
+  <div class="accuracy-bar"><div class="accuracy-fill" id="accFill"></div></div>
+</div>
+<script>
+const WORDS_EASY=['the','be','to','of','and','a','in','that','have','it','for','not','on','with','he','as','you','do','at','this','but','his','by','from','they','we','say','her','she','or','an','will','my','one','all','would','there','their','what','so','up','out','if','about','who','get','which','go','me','when','make','can','like','time','no','just','him','know','take','people','into','year','your','good','some','could','them','see','other','than','then','now','look','only','come','its','over','think','also','back','after','use','two','how','our','work','first','well','way','even','new'];
+const WORDS_HARD=['algorithm','synchronize','perpendicular','extraordinary','circumstances','acknowledge','phenomenon','temperature','approximately','immediately','particularly','independent','consequently','communication','relationships','understanding','infrastructure','responsibilities','philosophical','transformation'];
+const SENTENCES=['The quick brown fox jumps over the lazy dog near the river bank.','Pack my box with five dozen liquor jugs for the party tonight.','How vexingly quick daft zebras jump over the sleeping brown fox.','The five boxing wizards jump quickly past the old wooden fence.','Sphinx of black quartz judge my vow to protect the ancient temple.'];
+
+let text='',pos=0,started=false,finished=false,errors=0,totalTyped=0,streak=0,bestWpm=0;
+let timeLeft,totalTime=60,difficulty='easy',timerInt,wpmInt;
+
+function setDiff(t,d,btn){
+  totalTime=t;difficulty=d;
+  document.querySelectorAll('.diff-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
+  startTest();
+}
+
+function getWords(){
+  if(difficulty==='easy')return shuffle([...WORDS_EASY]).slice(0,40).join(' ');
+  if(difficulty==='normal')return shuffle([...WORDS_EASY,...WORDS_EASY]).slice(0,50).join(' ');
+  if(difficulty==='hard')return shuffle([...WORDS_HARD,...WORDS_EASY.slice(0,30)]).join(' ');
+  return SENTENCES[Math.floor(Math.random()*SENTENCES.length)]+' '+SENTENCES[Math.floor(Math.random()*SENTENCES.length)];
+}
+
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+function startTest(){
+  text=getWords();pos=0;started=false;finished=false;errors=0;totalTyped=0;streak=0;
+  timeLeft=totalTime;clearInterval(timerInt);clearInterval(wpmInt);
+  document.getElementById('results').classList.remove('show');
+  document.getElementById('timerFill').style.width='100%';
+  document.getElementById('timerFill').style.background='linear-gradient(90deg,#38bdf8,#818cf8)';
+  document.getElementById('wpm').textContent=0;
+  document.getElementById('accuracy').textContent='100%';
+  document.getElementById('streak').textContent=0;
+  document.getElementById('typeHint').textContent='Click the text and start typing!';
+  renderText();focusInput();
+}
+
+function renderText(){
+  const d=document.getElementById('textDisplay');
+  d.innerHTML=text.split('').map((ch,i)=>{
+    let cls='char ';
+    if(i<pos)cls+=document.querySelector(`[data-i="${i}"]`)?.dataset.state||'correct';
+    else if(i===pos)cls+='current';
+    else cls+='pending';
+    return`<span class="char ${i<pos?(stateArr[i]||'correct'):(i===pos?'current':'pending')}" data-i="${i}">${ch===' '?'&nbsp;':ch}</span>`;
+  }).join('');
+}
+
+let stateArr=[];
+function renderTextWithStates(){
+  const d=document.getElementById('textDisplay');
+  d.innerHTML=text.split('').map((ch,i)=>{
+    let cls='char ';
+    if(i<pos)cls+=stateArr[i]||'correct';
+    else if(i===pos)cls+='current';
+    else cls+='pending';
+    return`<span class="${cls}">${ch===' '?'&nbsp;':ch}</span>`;
+  }).join('');
+  // Scroll current char into view
+  const cur=d.querySelector('.current');
+  if(cur)cur.scrollIntoView({block:'nearest',behavior:'smooth'});
+}
+
+stateArr=[];
+
+function focusInput(){document.getElementById('hiddenInput').focus();}
+
+document.getElementById('hiddenInput').addEventListener('keydown',e=>{
+  if(finished)return;
+  if(e.key==='Backspace'){
+    if(pos>0){pos--;stateArr.pop();renderTextWithStates();}
+    e.preventDefault();return;
+  }
+  if(e.key.length!==1)return;
+  if(!started){
+    started=true;
+    document.getElementById('typeHint').textContent='Keep typing!';
+    timerInt=setInterval(()=>{
+      timeLeft--;
+      const pct=timeLeft/totalTime*100;
+      document.getElementById('timerFill').style.width=pct+'%';
+      if(pct<30)document.getElementById('timerFill').style.background='linear-gradient(90deg,#ef4444,#f97316)';
+      else if(pct<60)document.getElementById('timerFill').style.background='linear-gradient(90deg,#f59e0b,#38bdf8)';
+      if(timeLeft<=0)endTest();
+    },1000);
+    wpmInt=setInterval(()=>{
+      const elapsed=(totalTime-timeLeft)||1;
+      const words=stateArr.filter(s=>s==='correct').length/5;
+      const wpm=Math.round(words/(elapsed/60));
+      document.getElementById('wpm').textContent=wpm;
+      if(wpm>bestWpm){bestWpm=wpm;document.getElementById('bestWpm').textContent=bestWpm;}
+      const acc=totalTyped?Math.round((totalTyped-errors)/totalTyped*100):100;
+      document.getElementById('accuracy').textContent=acc+'%';
+    },500);
+  }
+  const expected=text[pos];
+  const correct=e.key===expected;
+  stateArr.push(correct?'correct':'wrong');
+  if(!correct)errors++;
+  totalTyped++;
+  if(correct)streak++;else streak=0;
+  document.getElementById('streak').textContent=streak;
+  pos++;e.preventDefault();
+  renderTextWithStates();
+  if(pos>=text.length)endTest();
+});
+
+function endTest(){
+  finished=true;clearInterval(timerInt);clearInterval(wpmInt);
+  const elapsed=totalTime-timeLeft||1;
+  const correct=stateArr.filter(s=>s==='correct').length;
+  const wpm=Math.round(correct/5/(elapsed/60));
+  const acc=totalTyped?Math.round((totalTyped-errors)/totalTyped*100):100;
+  if(wpm>bestWpm){bestWpm=wpm;document.getElementById('bestWpm').textContent=bestWpm;}
+  document.getElementById('resWpm').textContent=wpm;
+  document.getElementById('resAcc').textContent=acc+'%';
+  document.getElementById('resCorrect').textContent=correct;
+  document.getElementById('resErrors').textContent=errors;
+  document.getElementById('accFill').style.width=acc+'%';
+  document.getElementById('results').classList.add('show');
+  document.getElementById('typeHint').textContent=`Done! WPM: ${wpm}`;
+}
+
+startTest();
+</script>
+</body>
+</html>

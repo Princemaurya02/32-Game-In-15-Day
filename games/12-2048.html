@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>2048</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;color:#fff;font-family:'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:16px;touch-action:none}
+h1{font-size:2rem;background:linear-gradient(135deg,#f59e0b,#ef4444);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;font-weight:900}
+.hud{display:flex;gap:10px;margin-bottom:12px}
+.stat{background:#16161f;border:1px solid #2a2a3e;border-radius:10px;padding:8px 18px;text-align:center;min-width:80px}
+.stat-label{font-size:.6rem;color:#6b7280;text-transform:uppercase;letter-spacing:1px}
+.stat-val{font-size:1.2rem;font-weight:800;color:#f59e0b}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;background:#1a1a2a;padding:10px;border-radius:14px;border:2px solid #2a2a3e;touch-action:none}
+.cell{aspect-ratio:1;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:clamp(.9rem,4vw,1.5rem);transition:all .12s ease;background:#101020;border:1px solid #2a2a3e;min-width:0}
+.cell.pop{animation:popCell .15s ease}
+@keyframes popCell{0%{transform:scale(1)}50%{transform:scale(1.18)}100%{transform:scale(1)}}
+.btns{display:flex;gap:8px;margin-top:14px}
+.btn{background:#1a1a2a;border:1px solid #2a2a3e;color:#d1d5db;border-radius:10px;padding:8px 20px;cursor:pointer;font-size:.85rem;font-weight:700;transition:all .2s}
+.btn.primary{background:linear-gradient(135deg,#92400e,#d97706);border:none;color:#fff}
+.btn:hover{transform:translateY(-2px)}
+.msg{font-size:.82rem;color:#6b7280;margin:8px 0;min-height:22px;text-align:center}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;z-index:100}
+.overlay.show{display:flex}
+.ov-box{background:#16161f;border:2px solid #f59e0b;border-radius:20px;padding:36px;text-align:center;animation:pop .4s ease;max-width:280px;width:90%}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+.ov-emoji{font-size:3rem;display:block;margin-bottom:10px}
+.ov-title{font-size:1.7rem;color:#f59e0b;margin-bottom:6px}
+.ov-sub{color:#9ca3af;margin-bottom:20px;font-size:.9rem}
+</style>
+</head>
+<body>
+<h1>2048</h1>
+<div class="hud">
+  <div class="stat"><div class="stat-label">Score</div><div class="stat-val" id="score">0</div></div>
+  <div class="stat"><div class="stat-label">Best</div><div class="stat-val" id="best">0</div></div>
+  <div class="stat"><div class="stat-label">Moves</div><div class="stat-val" id="moves">0</div></div>
+</div>
+<div class="grid" id="grid"></div>
+<div class="msg" id="msg">Swipe or use arrow keys to merge tiles!</div>
+<div class="btns">
+  <button class="btn primary" onclick="newGame()">New Game</button>
+  <button class="btn" onclick="undo()">↩ Undo</button>
+</div>
+<div class="overlay" id="ov">
+  <div class="ov-box">
+    <span class="ov-emoji" id="ovEmoji">😵</span>
+    <div class="ov-title" id="ovTitle">Game Over</div>
+    <div class="ov-sub" id="ovSub"></div>
+    <button class="btn primary" onclick="newGame();closeOv()">▶ New Game</button>
+  </div>
+</div>
+<script>
+const COLORS={2:'#1e3a5f',4:'#1e4a3f',8:'#7c2d12',16:'#9a3412',32:'#b45309',64:'#d97706',128:'#b45309',256:'#92400e',512:'#7c3aed',1024:'#6d28d9',2048:'#4c1d95',4096:'#831843'};
+const TCOL={2:'#93c5fd',4:'#6ee7b7',8:'#fed7aa',16:'#fca5a5',32:'#fde68a',64:'#fbbf24',128:'#fb923c',256:'#f97316',512:'#c4b5fd',1024:'#a78bfa',2048:'#e9d5ff',4096:'#fbcfe8'};
+let board,score=0,best=0,moves=0,prevBoard,prevScore,won=false;
+const N=4;
+
+function newGame(){
+  board=Array.from({length:N},()=>Array(N).fill(0));
+  score=0;moves=0;won=false;prevBoard=null;prevScore=0;
+  addRandom();addRandom();
+  render();setMsg('');closeOv();
+  document.getElementById('score').textContent=0;
+  document.getElementById('moves').textContent=0;
+}
+
+function addRandom(){
+  const empty=[];
+  board.forEach((r,i)=>r.forEach((v,j)=>{if(!v)empty.push([i,j]);}));
+  if(!empty.length)return;
+  const[r,c]=empty[Math.floor(Math.random()*empty.length)];
+  board[r][c]=Math.random()<.9?2:4;
+}
+
+function render(){
+  const g=document.getElementById('grid');g.innerHTML='';
+  board.forEach((row,r)=>row.forEach((v,c)=>{
+    const cell=document.createElement('div');
+    cell.className='cell'+(v?' pop':'');
+    cell.style.background=v?(COLORS[v]||'#3b0764'):'#101020';
+    cell.style.color=v?(TCOL[v]||'#f3e8ff'):'transparent';
+    cell.style.boxShadow=v?`0 0 ${v>=128?20:8}px ${COLORS[v]||'#7c3aed'}55`:'none';
+    cell.textContent=v||'';
+    g.appendChild(cell);
+  }));
+  document.getElementById('score').textContent=score;
+  document.getElementById('best').textContent=best;
+  document.getElementById('moves').textContent=moves;
+}
+
+function slide(row){
+  let r=row.filter(v=>v);let s=0;
+  for(let i=0;i<r.length-1;i++){if(r[i]===r[i+1]){r[i]*=2;s+=r[i];r.splice(i+1,1);i++;}}
+  while(r.length<N)r.push(0);
+  return{row:r,score:s};
+}
+
+function move(dir){
+  prevBoard=board.map(r=>[...r]);prevScore=score;
+  let moved=false;let sc=0;
+  if(dir==='left'||dir==='right'){
+    board=board.map(row=>{
+      const rev=dir==='right'?[...row].reverse():row;
+      const{row:nr,score:s}=slide(rev);sc+=s;
+      const res=dir==='right'?nr.reverse():nr;
+      if(res.join()!==row.join())moved=true;
+      return res;
+    });
+  } else {
+    for(let c=0;c<N;c++){
+      let col=board.map(r=>r[c]);
+      const rev=dir==='down'?[...col].reverse():col;
+      const{row:nr,score:s}=slide(rev);sc+=s;
+      const res=dir==='down'?nr.reverse():nr;
+      if(res.join()!==col.join())moved=true;
+      res.forEach((v,r)=>board[r][c]=v);
+    }
+  }
+  if(!moved)return;
+  score+=sc;if(score>best)best=score;moves++;
+  addRandom();render();
+  if(board.flat().includes(2048)&&!won){won=true;setTimeout(()=>showOv('🏆','You reached 2048!',`Score: ${score}`),300);}
+  else if(!canMove())setTimeout(()=>showOv('😵','Game Over!',`Final score: ${score}`),300);
+}
+
+function canMove(){
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    if(!board[r][c])return true;
+    if(c<N-1&&board[r][c]===board[r][c+1])return true;
+    if(r<N-1&&board[r][c]===board[r+1][c])return true;
+  }return false;
+}
+
+function undo(){
+  if(!prevBoard)return;
+  board=prevBoard.map(r=>[...r]);score=prevScore;moves=Math.max(0,moves-1);
+  prevBoard=null;render();
+}
+
+function showOv(emoji,title,sub){
+  document.getElementById('ovEmoji').textContent=emoji;
+  document.getElementById('ovTitle').textContent=title;
+  document.getElementById('ovSub').textContent=sub;
+  document.getElementById('ov').classList.add('show');
+}
+function closeOv(){document.getElementById('ov').classList.remove('show');}
+function setMsg(m){document.getElementById('msg').textContent=m;}
+
+document.addEventListener('keydown',e=>{
+  const map={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down'};
+  if(map[e.key]){move(map[e.key]);e.preventDefault();}
+});
+
+let ts=null;
+document.getElementById('grid').addEventListener('touchstart',e=>{ts=e.touches[0];e.preventDefault();},{passive:false});
+document.getElementById('grid').addEventListener('touchend',e=>{
+  if(!ts)return;
+  const dx=e.changedTouches[0].clientX-ts.clientX,dy=e.changedTouches[0].clientY-ts.clientY;
+  if(Math.abs(dx)<20&&Math.abs(dy)<20)return;
+  if(Math.abs(dx)>Math.abs(dy))move(dx>0?'right':'left');else move(dy>0?'down':'up');
+  ts=null;e.preventDefault();
+},{passive:false});
+
+newGame();
+</script>
+</body>
+</html>

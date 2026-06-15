@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Breakout</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#040410;color:#fff;font-family:'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:12px;touch-action:none;overflow:hidden}
+h1{font-size:1.7rem;background:linear-gradient(135deg,#f472b6,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;letter-spacing:2px}
+.hud{display:flex;gap:10px;margin-bottom:8px;flex-wrap:wrap;justify-content:center}
+.stat{background:#0a0a1a;border:1px solid #1e1e38;border-radius:10px;padding:6px 14px;text-align:center;min-width:72px}
+.stat-label{font-size:.6rem;color:#6b7280;text-transform:uppercase;letter-spacing:1px}
+.stat-val{font-size:1.05rem;font-weight:700;color:#f472b6}
+canvas{border:2px solid #1e1e38;border-radius:8px;display:block;cursor:none}
+.lives{display:flex;gap:6px;margin:6px 0;font-size:1.2rem}
+.msg{min-height:24px;font-size:.85rem;color:#6b7280;text-align:center;margin:4px 0}
+.btn{background:linear-gradient(135deg,#7e1d8a,#a855f7);border:none;color:#fff;border-radius:10px;padding:9px 22px;cursor:pointer;font-size:.85rem;font-weight:700;transition:all .2s;margin-top:6px}
+.btn:hover{transform:translateY(-2px)}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;z-index:100}
+.overlay.show{display:flex}
+.ov-box{background:#0a0a1a;border:2px solid #a855f7;border-radius:20px;padding:36px;text-align:center;animation:pop .4s ease;max-width:280px;width:90%}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+.ov-emoji{font-size:3rem;display:block;margin-bottom:10px}
+.ov-title{font-size:1.7rem;color:#a855f7;margin-bottom:6px}
+.ov-sub{color:#9ca3af;margin-bottom:20px;font-size:.9rem}
+</style>
+</head>
+<body>
+<h1>🎮 BREAKOUT</h1>
+<div class="hud">
+  <div class="stat"><div class="stat-label">Score</div><div class="stat-val" id="score">0</div></div>
+  <div class="stat"><div class="stat-label">Best</div><div class="stat-val" id="best">0</div></div>
+  <div class="stat"><div class="stat-label">Level</div><div class="stat-val" id="level">1</div></div>
+</div>
+<div class="lives" id="lives">❤️❤️❤️</div>
+<canvas id="c"></canvas>
+<div class="msg" id="msg">Move mouse/touch to control paddle · Click to launch</div>
+<button class="btn" onclick="startGame()">▶ New Game</button>
+<div class="overlay" id="ov">
+  <div class="ov-box">
+    <span class="ov-emoji" id="ovEmoji">💥</span>
+    <div class="ov-title" id="ovTitle">Game Over</div>
+    <div class="ov-sub" id="ovSub"></div>
+    <button class="btn" onclick="startGame();closeOv()">▶ Play Again</button>
+  </div>
+</div>
+<script>
+const C=document.getElementById('c'),ctx=C.getContext('2d');
+const W=Math.min(360,window.innerWidth-28),H=Math.min(500,window.innerHeight-240);
+C.width=W;C.height=H;
+const PW=70,PH=10,BR=6,COLS=8;
+const BRICK_COLORS=[['#ef4444','#dc2626'],['#f97316','#ea580c'],['#eab308','#ca8a04'],['#22c55e','#16a34a'],['#06b6d4','#0891b2'],['#6366f1','#4f46e5'],['#a855f7','#9333ea'],['#ec4899','#db2777']];
+let px,bx,by,bdx,bdy,bricks,lives,score,best=0,level,running,launched,raf,powerUps;
+
+function buildBricks(lvl){
+  bricks=[];
+  const rows=Math.min(3+lvl,8),bw=Math.floor((W-20)/COLS)-4;
+  for(let r=0;r<rows;r++)for(let c=0;c<COLS;c++){
+    const hp=r<2?1:(r<4?2:3);
+    bricks.push({x:10+c*(bw+4),y:30+r*22,w:bw,h:16,hp,maxHp:hp,col:BRICK_COLORS[(r+lvl)%BRICK_COLORS.length]});
+  }
+}
+
+function startGame(){
+  px=W/2-PW/2;bx=W/2;by=H-50;bdx=3;bdy=-3;
+  lives=3;score=0;level=1;launched=false;running=true;powerUps=[];
+  buildBricks(1);updateHUD();closeOv();
+  setMsg('Click or tap to launch!');
+  cancelAnimationFrame(raf);loop();
+}
+
+function loop(){
+  raf=requestAnimationFrame(loop);
+  ctx.fillStyle='#040410';ctx.fillRect(0,0,W,H);
+  // Bricks
+  bricks.forEach(b=>{
+    if(b.hp<=0)return;
+    const t=b.hp/b.maxHp;
+    ctx.fillStyle=b.col[0];
+    ctx.shadowColor=b.col[0];ctx.shadowBlur=8;
+    ctx.beginPath();ctx.roundRect(b.x,b.y,b.w,b.h,BR);ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.fillStyle=`rgba(255,255,255,${.12*t})`;
+    ctx.beginPath();ctx.roundRect(b.x+2,b.y+2,b.w-4,5,2);ctx.fill();
+    if(b.maxHp>1){
+      ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(b.x,b.y+b.h-3,(b.w*(1-t)),3);
+    }
+  });
+  // Power-ups
+  powerUps.forEach((p,i)=>{
+    p.y+=2;
+    ctx.fillStyle=p.color;ctx.shadowColor=p.color;ctx.shadowBlur=12;
+    ctx.beginPath();ctx.roundRect(p.x-12,p.y-8,24,16,4);ctx.fill();
+    ctx.shadowBlur=0;ctx.fillStyle='#fff';ctx.font='10px Segoe UI';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(p.label,p.x,p.y);
+    if(p.y>H-30&&p.x>px&&p.x<px+PW){
+      applyPowerUp(p);powerUps.splice(i,1);
+    }
+    if(p.y>H)powerUps.splice(i,1);
+  });
+  // Paddle
+  const grad=ctx.createLinearGradient(px,H-30,px+PW,H-20);
+  grad.addColorStop(0,'#a855f7');grad.addColorStop(1,'#6366f1');
+  ctx.fillStyle=grad;ctx.shadowColor='#a855f7';ctx.shadowBlur=16;
+  ctx.beginPath();ctx.roundRect(px,H-30,PW,PH,5);ctx.fill();
+  ctx.shadowBlur=0;
+  // Ball
+  if(!launched){bx=px+PW/2;}
+  ctx.beginPath();ctx.arc(bx,by,7,0,Math.PI*2);
+  ctx.fillStyle='#fff';ctx.shadowColor='#fff';ctx.shadowBlur=14;ctx.fill();ctx.shadowBlur=0;
+  if(!running)return;
+  if(!launched)return;
+  // Move ball
+  bx+=bdx;by+=bdy;
+  if(bx<7||bx>W-7)bdx*=-1;
+  if(by<7)bdy*=-1;
+  if(by>H-30&&bx>px&&bx<px+PW&&bdy>0){
+    bdy=-Math.abs(bdy);bdx+=((bx-(px+PW/2))/(PW/2))*2;
+    bdx=Math.max(-5,Math.min(5,bdx));score+=1;updateHUD();
+  }
+  if(by>H){loseLife();return;}
+  // Brick collision
+  bricks.forEach(b=>{
+    if(b.hp<=0)return;
+    if(bx+7>b.x&&bx-7<b.x+b.w&&by+7>b.y&&by-7<b.y+b.h){
+      b.hp--;score+=10*level;updateHUD();
+      const fromLeft=bx<b.x||bx>b.x+b.w;
+      if(fromLeft)bdx*=-1;else bdy*=-1;
+      if(b.hp===0&&Math.random()<.15)spawnPowerUp(b);
+    }
+  });
+  if(bricks.every(b=>b.hp<=0)){nextLevel();}
+}
+
+function loseLife(){
+  lives--;updateHUD();launched=false;
+  bx=px+PW/2;by=H-50;bdx=3+level*.3;bdy=-(3+level*.3);
+  if(lives<=0){running=false;if(score>best)best=score;
+    document.getElementById('ovEmoji').textContent='💥';
+    document.getElementById('ovTitle').textContent='Game Over!';
+    document.getElementById('ovSub').textContent=`Score: ${score} · Level: ${level}`;
+    document.getElementById('ov').classList.add('show');
+  } else setMsg('Click or tap to launch!');
+}
+
+function nextLevel(){
+  level++;setMsg(`Level ${level}!`);launched=false;
+  bx=px+PW/2;by=H-50;bdx=3+level*.3;bdy=-(3+level*.3);
+  buildBricks(level);updateHUD();
+}
+
+function spawnPowerUp(b){
+  const types=[{label:'W+',color:'#22c55e',fn:()=>{PW_wide=true;setTimeout(()=>PW_wide=false,8000);}},{label:'♥',color:'#ef4444',fn:()=>{lives=Math.min(5,lives+1);updateHUD();}},{label:'x2',color:'#f59e0b',fn:()=>{score+=100*level;updateHUD();}}];
+  const t=types[Math.floor(Math.random()*types.length)];
+  powerUps.push({x:b.x+b.w/2,y:b.y,color:t.color,label:t.label,fn:t.fn});
+}
+let PW_wide=false;
+function applyPowerUp(p){p.fn();}
+
+function updateHUD(){
+  document.getElementById('score').textContent=score;
+  document.getElementById('best').textContent=best;
+  document.getElementById('level').textContent=level;
+  document.getElementById('lives').textContent='❤️'.repeat(Math.max(0,lives))+'🖤'.repeat(Math.max(0,3-lives));
+}
+function setMsg(m){document.getElementById('msg').textContent=m;}
+function closeOv(){document.getElementById('ov').classList.remove('show');}
+
+C.addEventListener('mousemove',e=>{const r=C.getBoundingClientRect();px=Math.max(0,Math.min(W-PW,e.clientX-r.left-PW/2));});
+C.addEventListener('touchmove',e=>{const r=C.getBoundingClientRect();px=Math.max(0,Math.min(W-PW,e.touches[0].clientX-r.left-PW/2));e.preventDefault();},{passive:false});
+C.addEventListener('click',()=>{if(!launched&&running){launched=true;setMsg('');}});
+C.addEventListener('touchstart',e=>{if(!launched&&running){launched=true;setMsg('');}e.preventDefault();},{passive:false});
+
+startGame();
+</script>
+</body>
+</html>

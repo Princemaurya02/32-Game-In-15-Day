@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Memory Match</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0d0d1a; color: #fff; font-family: 'Segoe UI', sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 16px; }
+  h1 { font-size: 1.8rem; background: linear-gradient(135deg, #a78bfa, #60a5fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+  .hud { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; justify-content: center; }
+  .stat { background: #1a1a2e; border: 1px solid #2d2d4e; border-radius: 10px; padding: 8px 16px; text-align: center; min-width: 80px; }
+  .stat-label { font-size: 0.65rem; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; }
+  .stat-val { font-size: 1.2rem; font-weight: 700; color: #a78bfa; }
+  .level-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+  .level-btn { background: #1a1a2e; border: 1px solid #2d2d4e; color: #9ca3af; border-radius: 8px; padding: 6px 14px; cursor: pointer; font-size: 0.8rem; transition: all .2s; }
+  .level-btn.active { background: #7c3aed; border-color: #a78bfa; color: #fff; }
+  .grid { display: grid; gap: 10px; max-width: 420px; width: 100%; }
+  .card { aspect-ratio: 1; perspective: 600px; cursor: pointer; }
+  .card-inner { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transition: transform 0.5s cubic-bezier(.175,.885,.32,1.275); border-radius: 12px; }
+  .card.flipped .card-inner { transform: rotateY(180deg); }
+  .card.matched .card-inner { transform: rotateY(180deg); }
+  .card.matched .card-back { box-shadow: 0 0 20px rgba(167,139,250,0.6); border-color: #a78bfa; }
+  .card-front, .card-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 2rem; }
+  .card-front { background: linear-gradient(135deg, #1a1a2e, #16213e); border: 2px solid #2d2d4e; }
+  .card-front::after { content: '?'; font-size: 1.5rem; color: #4c4f6b; }
+  .card-back { background: #1a1a2e; border: 2px solid #374151; transform: rotateY(180deg); }
+  .btn { background: linear-gradient(135deg, #7c3aed, #4f46e5); border: none; color: #fff; border-radius: 10px; padding: 10px 24px; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all .2s; margin-top: 16px; }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(124,58,237,0.4); }
+  .win-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
+  .win-overlay.show { display: flex; }
+  .win-box { background: #1a1a2e; border: 2px solid #a78bfa; border-radius: 20px; padding: 40px; text-align: center; animation: popIn .5s cubic-bezier(.175,.885,.32,1.275); }
+  @keyframes popIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .win-emoji { font-size: 4rem; display: block; margin-bottom: 16px; }
+  .win-title { font-size: 2rem; background: linear-gradient(135deg, #a78bfa, #60a5fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+  .win-stats { color: #9ca3af; margin-bottom: 24px; }
+  .card.shake { animation: shake 0.4s; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+  .matched-flash { animation: flash 0.4s; }
+  @keyframes flash { 0%,100%{opacity:1} 50%{opacity:0.5} }
+</style>
+</head>
+<body>
+<h1>🧠 Memory Match</h1>
+<div class="hud">
+  <div class="stat"><div class="stat-label">Score</div><div class="stat-val" id="score">0</div></div>
+  <div class="stat"><div class="stat-label">Moves</div><div class="stat-val" id="moves">0</div></div>
+  <div class="stat"><div class="stat-label">Time</div><div class="stat-val" id="timer">0:00</div></div>
+  <div class="stat"><div class="stat-label">Pairs</div><div class="stat-val" id="pairs">0/0</div></div>
+</div>
+<div class="level-bar">
+  <button class="level-btn active" onclick="startGame(1)">Easy</button>
+  <button class="level-btn" onclick="startGame(2)">Medium</button>
+  <button class="level-btn" onclick="startGame(3)">Hard</button>
+</div>
+<div class="grid" id="grid"></div>
+<button class="btn" onclick="startGame(currentLevel)">🔄 Restart</button>
+
+<div class="win-overlay" id="winOverlay">
+  <div class="win-box">
+    <span class="win-emoji">🎉</span>
+    <div class="win-title">You Won!</div>
+    <div class="win-stats" id="winStats"></div>
+    <button class="btn" onclick="nextLevel()">Next Level →</button>
+    <br>
+    <button class="btn" style="background: #374151; margin-top:8px" onclick="closeWin()">Play Again</button>
+  </div>
+</div>
+
+<script>
+const LEVELS = [
+  { cols: 3, pairs: 6, label: 1 },
+  { cols: 4, pairs: 8, label: 2 },
+  { cols: 4, pairs: 12, label: 3 }
+];
+const EMOJIS = ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐸','🐵','🐔','🦄','🐙','🦋','🌸','🍕','🎸','⚡','🌈','🔮'];
+let flipped = [], matched = [], moves = 0, score = 0, timer = null, seconds = 0, canFlip = true, currentLevel = 1;
+
+function startGame(level) {
+  currentLevel = level;
+  document.querySelectorAll('.level-btn').forEach((b, i) => b.classList.toggle('active', i+1 === level));
+  const cfg = LEVELS[level - 1];
+  clearInterval(timer);
+  flipped = []; matched = []; moves = 0; score = 0; seconds = 0; canFlip = true;
+  updateHUD(cfg.pairs);
+  const emojis = EMOJIS.slice(0, cfg.pairs);
+  const cards = shuffle([...emojis, ...emojis]);
+  const grid = document.getElementById('grid');
+  grid.style.gridTemplateColumns = `repeat(${cfg.cols}, 1fr)`;
+  grid.innerHTML = '';
+  cards.forEach((e, i) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.emoji = e;
+    card.dataset.idx = i;
+    card.innerHTML = `<div class="card-inner"><div class="card-front"></div><div class="card-back">${e}</div></div>`;
+    card.addEventListener('click', () => flipCard(card, cfg.pairs));
+    grid.appendChild(card);
+  });
+  document.getElementById('winOverlay').classList.remove('show');
+  timer = setInterval(() => {
+    seconds++;
+    const m = Math.floor(seconds/60), s = seconds%60;
+    document.getElementById('timer').textContent = `${m}:${s.toString().padStart(2,'0')}`;
+  }, 1000);
+}
+
+function flipCard(card, totalPairs) {
+  if (!canFlip || card.classList.contains('flipped') || card.classList.contains('matched')) return;
+  if (flipped.length >= 2) return;
+  card.classList.add('flipped');
+  flipped.push(card);
+  if (flipped.length === 2) {
+    moves++;
+    document.getElementById('moves').textContent = moves;
+    canFlip = false;
+    setTimeout(() => checkMatch(totalPairs), 700);
+  }
+}
+
+function checkMatch(totalPairs) {
+  const [a, b] = flipped;
+  if (a.dataset.emoji === b.dataset.emoji) {
+    a.classList.add('matched', 'matched-flash');
+    b.classList.add('matched', 'matched-flash');
+    matched.push(a, b);
+    score += Math.max(10, 50 - moves);
+    document.getElementById('score').textContent = score;
+    document.getElementById('pairs').textContent = `${matched.length/2}/${totalPairs}`;
+    if (matched.length === totalPairs * 2) {
+      clearInterval(timer);
+      setTimeout(() => showWin(totalPairs), 400);
+    }
+  } else {
+    a.classList.add('shake'); b.classList.add('shake');
+    setTimeout(() => {
+      a.classList.remove('flipped','shake');
+      b.classList.remove('flipped','shake');
+    }, 500);
+  }
+  flipped = [];
+  canFlip = true;
+}
+
+function showWin(pairs) {
+  const m = Math.floor(seconds/60), s = seconds%60;
+  document.getElementById('winStats').textContent = `${pairs} pairs • ${moves} moves • ${m}:${s.toString().padStart(2,'0')} • Score: ${score}`;
+  document.getElementById('winOverlay').classList.add('show');
+}
+
+function nextLevel() {
+  const next = Math.min(currentLevel + 1, 3);
+  startGame(next);
+}
+
+function closeWin() {
+  document.getElementById('winOverlay').classList.remove('show');
+  startGame(currentLevel);
+}
+
+function updateHUD(pairs) {
+  document.getElementById('score').textContent = '0';
+  document.getElementById('moves').textContent = '0';
+  document.getElementById('timer').textContent = '0:00';
+  document.getElementById('pairs').textContent = `0/${pairs}`;
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+startGame(1);
+</script>
+</body>
+</html>

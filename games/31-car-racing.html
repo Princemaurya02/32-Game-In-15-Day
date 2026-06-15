@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kids Racing Game</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#111;color:#fff;font-family:Arial,sans-serif;display:flex;flex-direction:column;align-items:center;padding:10px}
+h1{margin-bottom:8px;color:#ff8c00}
+.hud{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:8px}
+.card{background:#222;padding:8px 12px;border-radius:8px}
+canvas{background:#222;border:2px solid #444;border-radius:10px}
+.controls{display:flex;gap:10px;margin-top:10px}
+button{padding:10px 16px;border:none;border-radius:8px;background:#ff8c00;color:#fff;font-weight:bold}
+</style>
+</head>
+<body>
+<h1>🏎 Kids Racing</h1>
+
+<div class="hud">
+<div class="card">Score: <span id="score">0</span></div>
+<div class="card">Coins: <span id="coins">0</span></div>
+<div class="card">Level: <span id="level">1</span></div>
+<div class="card">Best: <span id="best">0</span></div>
+</div>
+
+<canvas id="game" width="360" height="600"></canvas>
+
+<div class="controls">
+<button id="left">◀</button>
+<button id="nitro">⚡ Nitro</button>
+<button id="right">▶</button>
+</div>
+
+<script>
+const c=document.getElementById("game");
+const ctx=c.getContext("2d");
+
+const lanes=[100,180,260];
+let lane=1;
+let targetX=lanes[1]-20;
+let x=targetX;
+let y=500;
+
+let score=0;
+let coins=0;
+let level=1;
+let speed=5;
+let shield=false;
+let nitro=0;
+
+let best=localStorage.getItem("bestScore")||0;
+document.getElementById("best").textContent=best;
+
+let enemies=[];
+let coinItems=[];
+let shieldItems=[];
+
+function spawnEnemy(){
+ enemies.push({lane:Math.floor(Math.random()*3),y:-80});
+}
+function spawnCoin(){
+ coinItems.push({lane:Math.floor(Math.random()*3),y:-20});
+}
+function spawnShield(){
+ shieldItems.push({lane:Math.floor(Math.random()*3),y:-20});
+}
+
+setInterval(spawnEnemy,1200);
+setInterval(spawnCoin,1500);
+setInterval(spawnShield,10000);
+
+function drawRoad(){
+ ctx.fillStyle="#555";
+ ctx.fillRect(60,0,240,600);
+
+ ctx.strokeStyle="#fff";
+ ctx.setLineDash([25,20]);
+ ctx.beginPath();
+ ctx.moveTo(140,0);ctx.lineTo(140,600);
+ ctx.moveTo(220,0);ctx.lineTo(220,600);
+ ctx.stroke();
+ ctx.setLineDash([]);
+}
+
+function drawPlayer(){
+ x+=(targetX-x)*0.18;
+
+ if(shield){
+  ctx.beginPath();
+  ctx.strokeStyle="cyan";
+  ctx.lineWidth=4;
+  ctx.arc(x+20,y+35,35,0,Math.PI*2);
+  ctx.stroke();
+ }
+
+ ctx.fillStyle="orange";
+ ctx.fillRect(x,y,40,70);
+
+ if(nitro>0){
+  ctx.fillStyle="cyan";
+  ctx.fillRect(x+10,y+70,8,15);
+  ctx.fillRect(x+22,y+70,8,15);
+ }
+}
+
+function updateObjects(){
+ const moveSpeed = speed + (nitro>0 ? 5 : 0);
+
+ enemies.forEach(e=>{
+  e.y += moveSpeed;
+  const ex=lanes[e.lane]-20;
+
+  ctx.fillStyle="red";
+  ctx.fillRect(ex,e.y,40,70);
+
+  if(x<ex+40 && x+40>ex && y<e.y+70 && y+70>e.y){
+    if(shield){
+      shield=false;
+      e.y=700;
+    }else{
+      gameOver();
+    }
+  }
+ });
+
+ coinItems.forEach(co=>{
+  co.y += moveSpeed;
+  const cx=lanes[co.lane];
+
+  ctx.fillStyle="gold";
+  ctx.beginPath();
+  ctx.arc(cx,co.y,10,0,Math.PI*2);
+  ctx.fill();
+
+  if(x<cx+15 && x+40>cx-15 && y<co.y+15 && y+70>co.y-15){
+    coins++;
+    score+=50;
+    co.hit=true;
+  }
+ });
+
+ shieldItems.forEach(s=>{
+  s.y += moveSpeed;
+  const sx=lanes[s.lane];
+
+  ctx.fillStyle="cyan";
+  ctx.beginPath();
+  ctx.arc(sx,s.y,12,0,Math.PI*2);
+  ctx.fill();
+
+  if(x<sx+15 && x+40>sx-15 && y<s.y+15 && y+70>s.y-15){
+    shield=true;
+    s.hit=true;
+  }
+ });
+
+ enemies=enemies.filter(e=>e.y<700);
+ coinItems=coinItems.filter(c=>!c.hit && c.y<700);
+ shieldItems=shieldItems.filter(s=>!s.hit && s.y<700);
+}
+
+function update(){
+ score++;
+ level=Math.floor(score/1000)+1;
+ speed=5+level*0.3;
+
+ if(nitro>0) nitro--;
+
+ if(score>best){
+  best=score;
+  localStorage.setItem("bestScore",best);
+ }
+
+ document.getElementById("score").textContent=score;
+ document.getElementById("coins").textContent=coins;
+ document.getElementById("level").textContent=level;
+ document.getElementById("best").textContent=best;
+}
+
+function loop(){
+ ctx.clearRect(0,0,360,600);
+
+ drawRoad();
+ update();
+ updateObjects();
+ drawPlayer();
+
+ requestAnimationFrame(loop);
+}
+
+function gameOver(){
+ alert("Game Over! Score: "+score);
+ location.reload();
+}
+
+document.getElementById("left").onclick=()=>{
+ lane=Math.max(0,lane-1);
+ targetX=lanes[lane]-20;
+};
+
+document.getElementById("right").onclick=()=>{
+ lane=Math.min(2,lane+1);
+ targetX=lanes[lane]-20;
+};
+
+document.getElementById("nitro").onclick=()=>{
+ if(coins>=10){
+   coins-=10;
+   nitro=300;
+ }
+};
+
+let startX=0;
+
+c.addEventListener("touchstart",e=>{
+ startX=e.touches[0].clientX;
+});
+
+c.addEventListener("touchend",e=>{
+ const endX=e.changedTouches[0].clientX;
+
+ if(endX-startX>40){
+  lane=Math.min(2,lane+1);
+ }
+ if(startX-endX>40){
+  lane=Math.max(0,lane-1);
+ }
+
+ targetX=lanes[lane]-20;
+});
+
+document.addEventListener("keydown",e=>{
+ if(e.key==="ArrowLeft"){
+   lane=Math.max(0,lane-1);
+ }
+ if(e.key==="ArrowRight"){
+   lane=Math.min(2,lane+1);
+ }
+ targetX=lanes[lane]-20;
+});
+
+loop();
+</script>
+</body>
+</html>

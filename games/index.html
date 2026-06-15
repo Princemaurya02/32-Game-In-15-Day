@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>🎮 Game Arcade — 32 Games</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#050510;--card:#0d0d1e;--border:#1a1a32;--accent:#7c3aed;--accent2:#3b82f6;--text:#f1f5f9;--muted:#64748b}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;overflow-x:hidden}
+.bg-orbs{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.orb{position:absolute;border-radius:50%;filter:blur(100px);opacity:.12;animation:drift 25s ease-in-out infinite}
+.o1{width:500px;height:500px;background:#7c3aed;top:-150px;left:-150px;animation-delay:0s}
+.o2{width:400px;height:400px;background:#3b82f6;bottom:-100px;right:-100px;animation-delay:-8s}
+.o3{width:350px;height:350px;background:#ec4899;top:45%;left:35%;animation-delay:-16s}
+@keyframes drift{0%,100%{transform:translate(0,0)}33%{transform:translate(40px,-40px)}66%{transform:translate(-30px,30px)}}
+.wrap{position:relative;z-index:1;max-width:1000px;margin:0 auto;padding:20px 14px 60px}
+.header{text-align:center;padding:36px 0 28px}
+.badge{display:inline-flex;align-items:center;gap:6px;background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.35);border-radius:20px;padding:4px 16px;font-size:.72rem;color:#a78bfa;letter-spacing:1px;text-transform:uppercase;margin-bottom:18px}
+.header h1{font-size:clamp(2rem,6vw,3.6rem);font-weight:900;background:linear-gradient(135deg,#a78bfa 0%,#60a5fa 40%,#f472b6 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.1;margin-bottom:10px}
+.header p{color:var(--muted);font-size:.95rem;max-width:440px;margin:0 auto 20px}
+.h-stats{display:flex;gap:28px;justify-content:center;flex-wrap:wrap}
+.hs{text-align:center}
+.hs-val{font-size:1.8rem;font-weight:900;background:linear-gradient(135deg,#a78bfa,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hs-label{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+.toolbar{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center;justify-content:center}
+.search-wrap{position:relative;flex:1;max-width:280px}
+.search-wrap input{width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:12px;padding:10px 14px 10px 40px;font-size:.88rem;outline:none;transition:border .2s}
+.search-wrap input:focus{border-color:#7c3aed}
+.search-wrap input::placeholder{color:var(--muted)}
+.si{position:absolute;left:13px;top:50%;transform:translateY(-50%);opacity:.4;font-size:.9rem}
+.filters{display:flex;gap:5px;flex-wrap:wrap;justify-content:center}
+.fb{background:var(--card);border:1px solid var(--border);color:var(--muted);border-radius:20px;padding:6px 14px;font-size:.75rem;cursor:pointer;transition:all .2s;white-space:nowrap}
+.fb.on,.fb:hover{background:#7c3aed;border-color:#7c3aed;color:#fff}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+@media(max-width:520px){.grid{grid-template-columns:repeat(2,1fr);gap:10px}}
+@media(max-width:300px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;transition:transform .22s,box-shadow .22s,border-color .22s;position:relative;display:flex;flex-direction:column;text-decoration:none;color:inherit}
+.card:hover{transform:translateY(-5px);box-shadow:0 18px 45px rgba(0,0,0,.5);border-color:#2a2a4a}
+.thumb{width:100%;aspect-ratio:16/9;position:relative;overflow:hidden;background:#07071a;flex-shrink:0}
+.thumb svg{width:100%;height:100%;display:block}
+.num-badge{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);border-radius:20px;padding:2px 9px;font-size:.62rem;color:rgba(255,255,255,.65);font-weight:700}
+.diff-badge{position:absolute;top:8px;right:8px;border-radius:20px;padding:2px 9px;font-size:.6rem;font-weight:700}
+.de{background:rgba(34,197,94,.15);color:#4ade80;border:1px solid rgba(34,197,94,.4)}
+.dm{background:rgba(234,179,8,.15);color:#facc15;border:1px solid rgba(234,179,8,.4)}
+.dh{background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.4)}
+.body{padding:12px 14px 14px;flex:1;display:flex;flex-direction:column}
+.top{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.icon{font-size:1.5rem;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:rgba(255,255,255,.04);flex-shrink:0}
+.title{font-size:.92rem;font-weight:700;color:var(--text);line-height:1.2}
+.desc{font-size:.72rem;color:var(--muted);line-height:1.45;margin-bottom:9px;flex:1}
+.footer-row{display:flex;align-items:center;justify-content:space-between}
+.tags{display:flex;gap:4px;flex-wrap:wrap}
+.tag{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:1px 6px;font-size:.6rem;color:var(--muted)}
+.play{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#fff;border-radius:8px;padding:6px 14px;font-size:.75rem;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap}
+.card:hover .play{box-shadow:0 4px 14px rgba(124,58,237,.5)}
+.empty{text-align:center;padding:60px 20px;color:var(--muted);display:none}
+.empty.show{display:block}
+.play-overlay{position:fixed;inset:0;background:#05050f;z-index:1000;display:none;flex-direction:column}
+.play-overlay.open{display:flex;animation:fadeIn .2s}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.ov-header{display:flex;align-items:center;gap:10px;padding:10px 16px;background:#0a0a18;border-bottom:1px solid var(--border);flex-shrink:0}
+.back{background:#141428;border:none;color:var(--text);border-radius:8px;padding:7px 14px;cursor:pointer;font-size:.82rem;font-weight:700;transition:background .2s;white-space:nowrap}
+.back:hover{background:#1e1e38}
+.ov-title{font-size:.98rem;font-weight:700;flex:1;text-align:center}
+.ov-icon{font-size:1.3rem}
+.gframe{flex:1;border:none;width:100%;background:#0a0a18}
+.site-footer{text-align:center;padding:28px 0 0;color:var(--muted);font-size:.75rem;line-height:1.8}
+.fd-row{display:flex;justify-content:center;gap:5px;margin-bottom:10px}
+.fd{width:5px;height:5px;border-radius:50%;background:var(--border)}
+.fd.lit{background:#7c3aed}
+</style>
+</head>
+<body>
+<div class="bg-orbs"><div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div></div>
+<div class="wrap">
+  <div class="header">
+    <div class="badge">🎮 Offline Game Arcade</div>
+    <h1>32 Puzzle Games</h1>
+    <p>Hand-crafted games for ages 10–50. No internet needed, no ads, no install. Just open and play.</p>
+    <div class="h-stats">
+      <div class="hs"><div class="hs-val">32</div><div class="hs-label">Games</div></div>
+      <div class="hs"><div class="hs-val">100%</div><div class="hs-label">Offline</div></div>
+      <div class="hs"><div class="hs-val">📱</div><div class="hs-label">Mobile</div></div>
+      <div class="hs"><div class="hs-val">0</div><div class="hs-label">Ads</div></div>
+    </div>
+  </div>
+  <div class="toolbar">
+    <div class="search-wrap">
+      <span class="si">🔍</span>
+      <input type="text" id="searchInput" placeholder="Search games..." oninput="renderCards()">
+    </div>
+    <div class="filters">
+      <button class="fb on" onclick="setFilter('all',this)">All</button>
+      <button class="fb" onclick="setFilter('puzzle',this)">Puzzle</button>
+      <button class="fb" onclick="setFilter('arcade',this)">Arcade</button>
+      <button class="fb" onclick="setFilter('strategy',this)">Strategy</button>
+      <button class="fb" onclick="setFilter('word',this)">Word</button>
+      <button class="fb" onclick="setFilter('easy',this)">Easy</button>
+      <button class="fb" onclick="setFilter('hard',this)">Hard</button>
+    </div>
+  </div>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty">😕 No games match your search</div>
+  <div class="site-footer">
+    <div class="fd-row"><div class="fd lit"></div><div class="fd"></div><div class="fd lit"></div><div class="fd"></div><div class="fd lit"></div></div>
+    All 32 games run fully offline in your browser · No server needed · Open index.html in any browser
+  </div>
+</div>
+<div class="play-overlay" id="playOverlay">
+  <div class="ov-header">
+    <button class="back" onclick="closeGame()">← Back to Games</button>
+    <div class="ov-title" id="overlayTitle">Game</div>
+    <span class="ov-icon" id="overlayIcon">🎮</span>
+  </div>
+  <iframe class="gframe" id="gameFrame" src="" allowfullscreen></iframe>
+</div>
+<script>
+const C=['#a78bfa','#60a5fa','#f472b6','#34d399','#fbbf24','#f87171'];
+function s(inner){return`<svg viewBox="0 0 320 180" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`}
+function lbl(t){return`<text x="160" y="174" text-anchor="middle" fill="#4b5563" font-size="10">${t}</text>`}
+function rect(x,y,w,h,r,fill,stroke,sw){return`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="${fill}"${stroke?` stroke="${stroke}" stroke-width="${sw||1.5}"`:''}/>` }
+function circ(cx,cy,r,fill){return`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}"/>`}
+function txt(x,y,text,fill,size,weight){return`<text x="${x}" y="${y}" text-anchor="middle" fill="${fill}" font-size="${size}" font-weight="${weight||400}">${text}</text>`}
+
+const GAMES=[
+{id:1,f:'1-memory-match.html',icon:'🧠',title:'Memory Match',desc:'Flip cards to find matching pairs. 3 difficulty levels with timer and score tracking.',tags:['Memory','Cards'],diff:'easy',cat:['puzzle','easy'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#0d0d1e')}`+Array.from({length:6},(_,i)=>`${rect(40+i%3*82,26,64,60,10,C[i]+'22',C[i],1.5)}${txt(72+i%3*82,62,'ABCDEF'[i]==='A'?'🐱':'ABCDEF'[i]==='B'?'🐶':'ABCDEF'[i]==='C'?'🦊':'ABCDEF'[i]==='D'?'🐻':'🌸',C[i],22)}`).join('')+Array.from({length:6},(_,i)=>`${rect(40+i%3*82,96,64,60,10,C[i]+'22',C[i],1.5)}${rect(48+i%3*82,104,48,44,8,'#1a1a2e')}`).join('')+lbl('Flip cards · Find pairs'))},
+{id:2,f:'2-slide-puzzle.html',icon:'🔢',title:'Slide Puzzle',desc:'Slide numbered tiles into correct order. Choose 3×3, 4×4 or 5×5 grid.',tags:['Logic','Sliding'],diff:'medium',cat:['puzzle'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#0a0a0f')}`+[[1,2,3],[4,5,6],[7,8,'']].map((row,r)=>row.map((v,c)=>v?`${rect(66+c*60,14+r*52,52,44,7,'#3b82f633','#3b82f6',1.5)}${txt(92+c*60,44+r*52,v,'#60a5fa',18,800)}`:rect(66+c*60,14+r*52,52,44,7,'#0a1020','#1e2d4a',1.5)).join('')).join('')+lbl('Slide tiles · Complete order'))},
+{id:3,f:'3-maze-escape.html',icon:'🌀',title:'Maze Escape',desc:'Navigate procedurally generated mazes to reach the exit door. 5 levels.',tags:['Maze','Navigation'],diff:'easy',cat:['puzzle','arcade','easy'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#050510')}${rect(45,12,230,148,6,'#0a0a1e','#2d2d4e',2)}`+Array.from({length:15},(_,i)=>`${rect(45+i%5*46,12+Math.floor(i/5)*48,44,46,0,'#1a1a3e')}`).join('')+`${txt(65,50,'😮','#fff',16)}${txt(240,145,'🚪','#fff',16)}`+lbl('Navigate to the exit'))},
+{id:4,f:'4-word-scramble.html',icon:'📝',title:'Word Scramble',desc:'Rearrange scrambled letters to spell the correct word. Hints included!',tags:['Words','Spelling'],diff:'medium',cat:['word','puzzle'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#0a0510')}`+['S','L','Z','P','U','E'].map((l,i)=>`${rect(22+i*46,36,38,46,8,C[i]+'22',C[i],1.5)}${txt(41+i*46,66,l,C[i],20,700)}`).join('')+txt(160,108,'↓','#6b7280',13)+['P','U','Z','Z','L','E'].map((l,i)=>`${rect(22+i*46,118,38,38,8,'#22c55e22','#22c55e',1.5)}${txt(41+i*46,143,l,'#22c55e',18,700)}`).join('')+lbl('Unscramble the letters'))},
+{id:5,f:'5-chess.html',icon:'♟',title:'Chess',desc:'Full chess with AI opponent. Castling, en passant, promotion. 4 AI difficulty levels.',tags:['Chess','AI','Strategy'],diff:'hard',cat:['strategy','hard'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#0d0d1e')}`+Array.from({length:36},(_,i)=>rect(46+i%6*38,6+Math.floor(i/6)*28,38,28,0,(Math.floor(i/6)+i%6)%2===0?'#f0d9b5':'#b58863')).join('')+[['♜','♞','♝','♛','♚','♝'],['♟','♟','♟','♟','♟','♟'],[null,null,null,null,null,null],[null,null,null,null,null,null],['♙','♙','♙','♙','♙','♙'],['♖','♘','♗','♕','♔','♗']].map((row,r)=>row.map((p,c)=>p?txt(65+c*38,31+r*28,p,r<2?'#1a1a1a':'#fff',18):'').join('')).join('')+rect(46,6,228,168,2,'none','#2d2d4e',2)+lbl('vs AI · 4 difficulty levels'))},
+{id:6,f:'6-color-flood.html',icon:'🎨',title:'Color Flood',desc:'Flood-fill the entire board with one color in limited moves. 3 difficulties.',tags:['Color','Flood'],diff:'medium',cat:['puzzle'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#0d0008')}`+Array.from({length:25},(_,i)=>rect(50+i%5*44,14+Math.floor(i/5)*30,40,26,4,['#ef4444','#3b82f6','#22c55e','#eab308','#a855f7'][i%5])).join('')+lbl('Flood fill in limited moves'))},
+{id:7,f:'7-ball-sort.html',icon:'🎯',title:'Ball Sort',desc:'Sort colored balls so each tube holds only one color. 25 challenging levels!',tags:['Sorting','Logic','25 Lvls'],diff:'medium',cat:['puzzle'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#070b14')}`+[[[0,1,2,3],[1,0,3,2],[2,3,0,1],[3,2,1,0],[],[]]][ 0].map((t,ti)=>`${rect(28+ti*46,18,34,138,0,'#0a1020','#1e2d4a',1.5)}`+t.map((ball,bi)=>circ(45+ti*46,150-15*(bi+1),10,['#ef4444','#3b82f6','#22c55e','#eab308'][ball])).join('')).join('')+lbl('Sort balls · 25 levels'))},
+{id:8,f:'8-stack-balance.html',icon:'🏗️',title:'Stack Balance',desc:'Drop falling blocks to build the tallest tower. Physics simulation!',tags:['Physics','Stacking'],diff:'easy',cat:['arcade','easy'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#080510')}`+[[100,126,18],[86,106,18],[68,88,18],[48,72,18]].map(([w,y,h],i)=>rect((320-w)/2,y,w,h,4,['#ef4444','#f97316','#eab308','#22c55e'][i])).join('')+rect(85,148,150,12,5,'#2d2050')+rect(108,22,104,16,4,'#a855f7cc')+lbl('Drop blocks · Stack high'))},
+{id:9,f:'9-pattern-memory.html',icon:'🧩',title:'Pattern Memory',desc:'Watch the flashing color sequence and repeat it. Combos score big!',tags:['Memory','Sequence'],diff:'medium',cat:['arcade','puzzle'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#050010')}${rect(58,18,92,66,18,'#ef444433','#ef4444',2)}${rect(170,18,92,66,18,'#22c55e22','#22c55e',1)}${rect(58,96,92,66,18,'#3b82f622','#3b82f6',1)}${rect(170,96,92,66,18,'#eab30822','#eab308',1)}${rect(58,18,92,66,18,'rgba(255,255,255,.2)')}`+lbl('Watch · Repeat · Combo!'))},
+{id:10,f:'10-block-fit.html',icon:'🎯',title:'Block Fit',desc:'Drag blocks onto the grid to complete lines and clear space for more.',tags:['Blocks','Grid'],diff:'medium',cat:['puzzle'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#040814')}`+Array.from({length:24},(_,i)=>rect(26+i%6*44,14+Math.floor(i/6)*34,40,30,3,'none','#1e2d4a',1)).join('')+[[0,0,'#ef4444'],[0,1,'#ef4444'],[1,0,'#ef4444'],[0,2,'#3b82f6'],[0,3,'#3b82f6'],[1,2,'#22c55e'],[2,0,'#a855f7'],[2,1,'#a855f7']].map(([r,c,col])=>rect(27+c*44,15+r*34,38,28,3,col+'bb')).join('')+lbl('Fill rows · Earn combos'))},
+{id:11,f:'11-snake.html',icon:'🐍',title:'Snake',desc:'Eat food, grow longer, avoid walls and yourself. 4 speed levels!',tags:['Classic','Arcade'],diff:'easy',cat:['arcade','easy'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#061006')}`+Array.from({length:9},(_,i)=>rect(74+i*18,84,16,16,i===0?5:3,`rgba(34,${110+i*12},94,${.95-i*.08})`)).join('')+circ(230,52,9,'#ef4444')+txt(230,52,'🍎','#ef4444',14)+lbl('Eat food · Grow · 4 speeds'))},
+{id:12,f:'12-2048.html',icon:'🔢',title:'2048',desc:'Merge matching number tiles to reach 2048. Undo supported!',tags:['Merge','Logic'],diff:'medium',cat:['puzzle','strategy'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#0a0a0f')}`+[[2,4,8,16],[32,64,128,256],[512,1024,2048,4096]].map((row,r)=>row.map((v,c)=>`${rect(48+c*56,8+r*54,50,46,8,['#1e3a5f','#1e4a3f','#7c2d12','#9a3412','#b45309','#d97706','#b45309','#92400e','#7c3aed','#6d28d9','#4c1d95','#831843'][r*4+c]+'55')}`+txt(73+c*56,38+r*54,v,['#93c5fd','#6ee7b7','#fed7aa','#fca5a5','#fde68a','#fbbf24','#fb923c','#f97316','#c4b5fd','#a78bfa','#e9d5ff','#fbcfe8'][r*4+c],v>=1000?9:13,800)).join('')).join('')+lbl('Merge tiles · Reach 2048'))},
+{id:13,f:'13-minesweeper.html',icon:'💣',title:'Minesweeper',desc:'Reveal cells without hitting mines. Right-click to flag. 3 grid sizes.',tags:['Classic','Logic'],diff:'medium',cat:['puzzle','strategy'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#080808')}`+Array.from({length:36},(_,i)=>rect(44+i%6*38,10+Math.floor(i/6)*27,34,23,5,[8,17,28].includes(i)?'#200515':'#1e1e2e',[8,17,28].includes(i)?'#6d1a1a':'#2d2d4e',1)+([8,17,28].includes(i)?txt(61+i%6*38,27+Math.floor(i/6)*27,'💣','#fff',13):i%7===0?txt(61+i%6*38,27+Math.floor(i/6)*27,Math.floor(Math.random()*3)+1,'#60a5fa',11,700):'')).join('')+lbl('Avoid mines · Flag danger'))},
+{id:14,f:'14-tetris.html',icon:'🟦',title:'Tetris',desc:'Classic falling block puzzle. Clear lines, level up, chase high scores!',tags:['Classic','Falling'],diff:'medium',cat:['arcade','puzzle'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#050510')}`+[['#06b6d4',0,40,180,8],['#06b6d4',40,40,180,8],['#06b6d4',80,40,180,8],['#06b6d4',120,40,180,8],['#facc15',30,52,180,8],['#facc15',80,52,180,8],['#facc15',30,62,180,8],['#facc15',80,62,180,8],['#22c55e',0,82,180,8],['#22c55e',50,72,180,8],['#22c55e',100,72,180,8],['#ef4444',0,72,180,8],['#ef4444',50,82,180,8],['#a855f7',150,62,180,8],['#a855f7',150,72,180,8],['#a855f7',150,82,180,8],['#a855f7',200,82,180,8]].map(([c,x,y,_,h])=>rect(x,y,48,16,3,c+'aa','',0)+rect(x+2,y+2,20,5,2,'rgba(255,255,255,.2)')).join('')+lbl('Clear lines · Level up'))},
+{id:15,f:'15-sudoku.html',icon:'🔢',title:'Sudoku',desc:'Fill 9×9 grid so every row, column and 3×3 box contains 1–9.',tags:['Logic','Numbers'],diff:'hard',cat:['puzzle','strategy','hard'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#07070f')}`+Array.from({length:81},(_,i)=>rect(40+i%9*26,6+Math.floor(i/9)*18,24,16,2,'#100f1a',(Math.floor(i%9/3)+Math.floor(Math.floor(i/9)/3))%2===0?'#1e1d30':'#2a2840',1)+(Math.random()>.55?txt(52+i%9*26,19+Math.floor(i/9)*18,Math.floor(Math.random()*9)+1,Math.random()>.3?'#e2e8f0':'#f59e0b',9,700):'')).join('')+lbl('Fill logically · No repeats'))},
+{id:16,f:'16-breakout.html',icon:'🎮',title:'Breakout',desc:'Control the paddle to bounce the ball and break all bricks. Power-ups included!',tags:['Arcade','Classic'],diff:'easy',cat:['arcade','easy'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#040410')}`+Array.from({length:24},(_,i)=>rect(18+i%8*37,14+Math.floor(i/8)*22,33,17,4,['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#8b5cf6','#ec4899','#14b8a6'][i%8]+'aa','',0)).join('')+circ(160,130,8,'#fff')+rect(118,156,84,10,5,'#a855f7')+lbl('Break all bricks'))},
+{id:17,f:'17-flappy.html',icon:'🐦',title:'Flappy Bird',desc:'Tap to flap through pipes! Speed increases with your score.',tags:['Arcade','Reflex'],diff:'hard',cat:['arcade','hard'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#020d18')}${rect(55,0,55,68,0,'#14532d')}${rect(43,58,79,16,4,'#16a34a')}${rect(200,96,55,84,0,'#14532d')}${rect(188,90,79,16,4,'#16a34a')}`+circ(150,88,14,'#fde68a')+circ(158,84,5,'#fff')+circ(159,84,3,'#1e293b')+lbl('Tap to flap · Beat your best'))},
+{id:18,f:'18-whack-a-mole.html',icon:'🔨',title:'Whack-a-Mole',desc:'Hit moles as they pop up! Golden star = bonus. Watch for bomb 💣!',tags:['Arcade','Reflex'],diff:'easy',cat:['arcade','easy'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#0a0f05')}`+Array.from({length:9},(_,i)=>`<ellipse cx="${56+i%3*104}" cy="${68+Math.floor(i/3)*42}" rx="34" ry="18" fill="${Math.random()>.5?'#1a3010':'#0d130a'}" stroke="#1a2e10" stroke-width="2"/>`+(Math.random()>.4?txt(56+i%3*104,62+Math.floor(i/3)*42,Math.random()>.85?'⭐':'🐹','#fff',22):'')+'').join('')+lbl('Whack moles · Combo for points'))},
+{id:19,f:'19-crossword.html',icon:'📰',title:'Crossword',desc:'Fill in the grid using across and down clues. Classic newspaper crossword fun.',tags:['Word','Puzzle'],diff:'medium',cat:['word','puzzle'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#07080f')}`+Array.from({length:49},(_,i)=>rect(46+i%7*32,8+Math.floor(i/7)*23,29,20,2,Math.random()>.78?'#080912':'#0f1120',Math.random()>.78?'#080912':'#1e2242',1)+(Math.random()>.6&&Math.random()>.78?txt(60+i%7*32,23+Math.floor(i/7)*23,String.fromCharCode(65+Math.floor(Math.random()*26)),'#e2e8f0',10,700):'')).join('')+lbl('Solve across and down clues'))},
+{id:20,f:'20-bubble-shooter.html',icon:'🫧',title:'Bubble Shooter',desc:'Shoot matching colored bubbles to pop groups of 3+. Chain combos!',tags:['Arcade','Shooting'],diff:'easy',cat:['arcade','easy'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#03050d')}`+Array.from({length:18},(_,i)=>circ(36+i%6*48+(Math.floor(i/6)%2)*24,22+Math.floor(i/6)*26,16,['#ef4444','#3b82f6','#22c55e','#f59e0b','#a855f7','#ec4899'][i%6])).join('')+circ(160,158,16,'#818cf8')+`<line x1="160" y1="142" x2="200" y2="62" stroke="rgba(255,255,255,.2)" stroke-width="1.5" stroke-dasharray="4,5"/>`+lbl('Match 3+ bubbles to pop'))},
+{id:21,f:'21-tictactoe.html',icon:'✕',title:'Tic Tac Toe',desc:'Classic X vs O. Play vs smart AI with 3 difficulties, or 2-player mode.',tags:['Classic','AI'],diff:'easy',cat:['strategy','easy'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#07050f')}<line x1="118" y1="18" x2="118" y2="162" stroke="#1e1a30" stroke-width="3"/><line x1="202" y1="18" x2="202" y2="162" stroke="#1e1a30" stroke-width="3"/><line x1="58" y1="75" x2="262" y2="75" stroke="#1e1a30" stroke-width="3"/><line x1="58" y1="128" x2="262" y2="128" stroke="#1e1a30" stroke-width="3"/>${txt(88,62,'✕','#60a5fa',32,900)}${txt(160,58,'○','#f472b6',36)}${txt(232,62,'✕','#60a5fa',32,900)}${txt(88,115,'○','#f472b6',36)}${txt(232,115,'✕','#60a5fa',32,900)}`+lbl('Play vs AI or a friend'))},
+{id:22,f:'22-typing-speed.html',icon:'⌨️',title:'Typing Speed',desc:'Test your WPM! 4 difficulty modes from easy words to complex sentences.',tags:['Typing','Skill'],diff:'medium',cat:['word','arcade'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#06070f')}${rect(38,28,244,70,10,'#0d0e1c','#1a1d35',1.5)}${txt(160,50,'the quick brown fox','#4ade80',11)}${txt(160,68,'jumps over the lazy','#4ade80',11)}${txt(160,86,'dog...','#4b5563',11)}`+Array.from({length:10},(_,i)=>rect(46+i*24,116,20,28,4,'#0d0e1c','#1a1d35',1)+txt(56+i*24,136,'QWERTYUIOP'[i],'#818cf8',11,700)).join('')+lbl('Test your typing speed (WPM)'))},
+{id:23,f:'23-connect-four.html',icon:'🔴',title:'Connect Four',desc:'Drop coloured discs to connect 4 in a row vs AI or a friend.',tags:['Strategy','AI'],diff:'medium',cat:['strategy'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#06040f')}`+Array.from({length:42},(_,i)=>circ(34+i%7*36,22+Math.floor(i/7)*26,13,Math.random()>.55?'#f59e0b':Math.random()>.5?'#ef4444':'#06040f')+`<circle cx="${34+i%7*36}" cy="${22+Math.floor(i/7)*26}" r="13" fill="none" stroke="#1e1830" stroke-width="1.5"/>`).join('')+lbl('Connect 4 in a row'))},
+{id:24,f:'24-math-quiz.html',icon:'🧮',title:'Math Quiz',desc:'Timed arithmetic challenges. Addition, multiplication, squares and more!',tags:['Math','Quiz'],diff:'medium',cat:['puzzle','word'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#060a06')}${rect(38,18,244,62,14,'#0a0f0a','#142014',2)}${txt(160,56,'12 × 8 = ?','#f1f5f9',22,800)}`+Array.from({length:4},(_,i)=>rect(38+i%2*132,94+Math.floor(i/2)*38,122,32,10,'#0a0f0a',i===0?'#4ade80':'#142014',i===0?2:1.5)+txt(99+i%2*132,116+Math.floor(i/2)*38,[96,84,72,88][i],i===0?'#4ade80':'#9ca3af',14,700)).join('')+lbl('Solve fast · Beat the timer'))},
+{id:25,f:'25-simon-says.html',icon:'🎵',title:'Simon Says',desc:'Watch the flashing color sequence and repeat it. Speed increases each round!',tags:['Memory','Sequence'],diff:'medium',cat:['arcade','puzzle'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#050510')}${rect(58,18,92,68,18,'#ef444433','#ef4444',2)}${rect(170,18,92,68,18,'#22c55e22','#22c55e',1)}${rect(58,96,92,68,18,'#3b82f622','#3b82f6',1)}${rect(170,96,92,68,18,'#eab30833','#eab308',2)}${rect(58,18,92,68,18,'rgba(255,255,255,.22)')}${rect(170,96,92,68,18,'rgba(255,255,255,.22)')}`+lbl('Watch · Repeat · Beat your best'))},
+{id:26,f:'26-reaction-time.html',icon:'⚡',title:'Reaction Time',desc:'Click when the box turns green! Track your average reaction time in ms.',tags:['Reflex','Skill'],diff:'easy',cat:['arcade','easy'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#030508')}${rect(60,20,200,135,22,'#0a1e0a','#166534',2.5)}${txt(160,104,'TAP NOW!','#4ade80',18,800)}${txt(160,128,'213ms','#4ade80',13)}`+lbl('How fast are your reflexes?'))},
+{id:27,f:'27-hangman.html',icon:'🪢',title:'Hangman',desc:'Guess the hidden word letter by letter before the hangman is drawn. 3 difficulties.',tags:['Word','Guessing'],diff:'medium',cat:['word','puzzle'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#08060f')}<line x1="58" y1="160" x2="198" y2="160" stroke="#3d2d6e" stroke-width="3" stroke-linecap="round"/><line x1="88" y1="160" x2="88" y2="20" stroke="#3d2d6e" stroke-width="3" stroke-linecap="round"/><line x1="88" y1="20" x2="148" y2="20" stroke="#3d2d6e" stroke-width="3" stroke-linecap="round"/><line x1="148" y1="20" x2="148" y2="40" stroke="#3d2d6e" stroke-width="3" stroke-linecap="round"/><circle cx="148" cy="55" r="14" fill="none" stroke="#f472b6" stroke-width="2.5"/><line x1="148" y1="69" x2="148" y2="100" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round"/><line x1="148" y1="78" x2="130" y2="92" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round"/><line x1="148" y1="78" x2="166" y2="92" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round"/>`+lbl('Guess the word in time'))},
+{id:28,f:'28-space-invaders.html',icon:'👾',title:'Space Invaders',desc:'Shoot alien invaders before they reach Earth. Classic arcade action!',tags:['Arcade','Shooting'],diff:'medium',cat:['arcade'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#000508')}`+Array.from({length:24},(_,i)=>txt(28+i%8*36,32+Math.floor(i/8)*32,['👾','👽','🛸'][Math.floor(i/8)],'#fff',22)).join('')+`${rect(136,153,48,14,3,'#4ade80')}${txt(160,162,'▲','#000',10,700)}`+lbl('Defend Earth from invaders'))},
+{id:29,f:'29-pinball.html',icon:'🎰',title:'Pinball',desc:'Hit bumpers with the ball using flippers. Score multipliers and bonus points!',tags:['Arcade','Physics'],diff:'easy',cat:['arcade','easy'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#020408')}`+[circ(100,60,18,'#ef4444'),circ(220,60,18,'#3b82f6'),circ(160,100,18,'#22c55e'),circ(80,112,18,'#f59e0b'),circ(240,112,18,'#a855f7')].join('')+circ(160,40,9,'#fff')+`<line x1="70" y1="165" x2="130" y2="150" stroke="#4ade80" stroke-width="8" stroke-linecap="round"/><line x1="190" y1="150" x2="250" y2="165" stroke="#4ade80" stroke-width="8" stroke-linecap="round"/>`+lbl('Use flippers · Hit bumpers'))},
+{id:30,f:'30-wordle.html',icon:'🟩',title:'Wordle',desc:'Guess the 5-letter word in 6 tries. Green = correct, Yellow = wrong spot.',tags:['Word','Deduction'],diff:'hard',cat:['word','puzzle','hard'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#080810')}`+[['W','O','R','L','D'],['G','U','E','S','S'],['P','L','A','N','T'],['B','R','A','V','E'],['S','M','I','L','E']].map((row,r)=>row.map((l,c)=>rect(68+c*37,10+r*32,31,26,5,r===0?'#16653a':r===1?'#7c5a00':'#1e1e2e',r===0?'#4ade80':r===1?'#f59e0b':'#2d2d4e',1.5)+txt(83+c*37,30+r*32,l,r<2?'#fff':'#6b7280',13,800)).join('')).join('')+lbl('Guess the 5-letter word'))},
+{id:31,f:'31-car-racing.html',icon:'🏎',title:'Car Racing',desc:'Dodge oncoming traffic at increasing speed. How long can you survive?',tags:['Racing','Arcade'],diff:'medium',cat:['arcade'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#050508')}${rect(88,0,144,180,0,'#1a1820')}${rect(156,0,3,180,0,'rgba(255,255,0,.12)')}`+[rect(128,10,30,44,5,'#ef4444'),rect(172,54,30,44,5,'#3b82f6'),rect(122,102,30,44,5,'#a855f7'),rect(130,128,56,16,5,'#f97316')].join('')+lbl('Dodge traffic · Speed up'))},
+{id:32,f:'32-trivia-quiz.html',icon:'🧠',title:'Trivia Quiz',desc:'15 questions across Science, History, Geography, Sports, Math and more!',tags:['Quiz','Knowledge'],diff:'medium',cat:['puzzle','word'],
+thumb:()=>s(`${rect(0,0,320,180,0,'#06050f')}${rect(28,16,264,54,12,'#0d0c1a','#1a1830',1.5)}${txt(160,37,'What is the capital of Australia?','#f1f5f9',11,700)}${txt(160,54,'🌍 Geography · Medium','#6b7280',10)}`+[['Sydney','#111'],['Melbourne','#111'],['Canberra','#052015'],['Brisbane','#111']].map(([t,bg],i)=>rect(28+i%2*138,82+Math.floor(i/2)*38,128,30,8,bg,bg==='#052015'?'#4ade80':'#1a1830',bg==='#052015'?2:1)+txt(92+i%2*138,103+Math.floor(i/2)*38,t,bg==='#052015'?'#4ade80':'#9ca3af',11,600)).join('')+lbl('Test your general knowledge'))}
+];
+
+let activeFilter='all';
+function setFilter(f,btn){activeFilter=f;document.querySelectorAll('.fb').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderCards();}
+function renderCards(){
+  const q=document.getElementById('searchInput').value.toLowerCase().trim();
+  const visible=GAMES.filter(g=>{
+    const mf=activeFilter==='all'||g.cat.includes(activeFilter);
+    const ms=!q||g.title.toLowerCase().includes(q)||g.desc.toLowerCase().includes(q)||g.tags.some(t=>t.toLowerCase().includes(q));
+    return mf&&ms;
+  });
+  const grid=document.getElementById('grid');grid.innerHTML='';
+  document.getElementById('empty').classList.toggle('show',visible.length===0);
+  visible.forEach(g=>{
+    const dc=g.diff==='easy'?'de':g.diff==='medium'?'dm':'dh';
+    const card=document.createElement('a');card.className='card';card.href='#';
+    card.innerHTML=`<div class="thumb">${g.thumb()}<div class="num-badge">#${g.id}</div><div class="diff-badge ${dc}">${g.diff.charAt(0).toUpperCase()+g.diff.slice(1)}</div></div><div class="body"><div class="top"><div class="icon">${g.icon}</div><div class="title">${g.title}</div></div><div class="desc">${g.desc}</div><div class="footer-row"><div class="tags">${g.tags.slice(0,2).map(t=>`<span class="tag">${t}</span>`).join('')}</div><button class="play" onclick="event.stopPropagation();openGame(${g.id})">▶ Play</button></div></div>`;
+    card.addEventListener('click',e=>{e.preventDefault();openGame(g.id);});
+    grid.appendChild(card);
+  });
+}
+function openGame(id){
+  const g=GAMES.find(x=>x.id===id);if(!g)return;
+  document.getElementById('overlayTitle').textContent=g.title;
+  document.getElementById('overlayIcon').textContent=g.icon;
+  document.getElementById('gameFrame').src=g.f;
+  document.getElementById('playOverlay').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeGame(){
+  document.getElementById('playOverlay').classList.remove('open');
+  document.getElementById('gameFrame').src='';
+  document.body.style.overflow='';
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeGame();});
+renderCards();
+</script>
+</body>
+</html>

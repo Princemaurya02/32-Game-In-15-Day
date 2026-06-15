@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Flappy Bird</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#020d18;color:#fff;font-family:'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:12px;touch-action:none;overflow:hidden}
+h1{font-size:1.7rem;background:linear-gradient(135deg,#fde68a,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px}
+.hud{display:flex;gap:10px;margin-bottom:8px}
+.stat{background:#051018;border:1px solid #0c2030;border-radius:10px;padding:6px 14px;text-align:center;min-width:72px}
+.stat-label{font-size:.6rem;color:#6b7280;text-transform:uppercase;letter-spacing:1px}
+.stat-val{font-size:1.05rem;font-weight:700;color:#fde68a}
+canvas{border:2px solid #0c2030;border-radius:8px;display:block}
+.msg{min-height:24px;font-size:.85rem;color:#6b7280;text-align:center;margin:6px 0}
+.btn{background:linear-gradient(135deg,#78350f,#d97706);border:none;color:#fff;border-radius:10px;padding:9px 22px;cursor:pointer;font-size:.85rem;font-weight:700;transition:all .2s;margin-top:6px}
+.btn:hover{transform:translateY(-2px)}
+</style>
+</head>
+<body>
+<h1>🐦 FLAPPY</h1>
+<div class="hud">
+  <div class="stat"><div class="stat-label">Score</div><div class="stat-val" id="score">0</div></div>
+  <div class="stat"><div class="stat-label">Best</div><div class="stat-val" id="best">0</div></div>
+  <div class="stat"><div class="stat-label">Speed</div><div class="stat-val" id="speed">1</div></div>
+</div>
+<canvas id="c"></canvas>
+<div class="msg" id="msg">Tap / Space to flap!</div>
+<button class="btn" onclick="startGame()">▶ New Game</button>
+<script>
+const C=document.getElementById('c'),ctx=C.getContext('2d');
+const W=Math.min(360,window.innerWidth-28),H=Math.min(480,window.innerHeight-210);
+C.width=W;C.height=H;
+const GRAVITY=0.35,FLAP=-6.5,PIPE_W=52,GAP=H*0.28,PIPE_SPEED=2.4;
+let bird,pipes,score,best=0,running,raf,frameCount,stars,clouds;
+
+function makeStars(){stars=Array.from({length:40},()=>({x:Math.random()*W,y:Math.random()*H*.7,r:Math.random()*1.5+.5,t:Math.random()*Math.PI*2}));}
+function makeClouds(){clouds=[{x:W*.2,y:H*.1,w:70},{x:W*.6,y:H*.18,w:50},{x:W*.85,y:H*.08,w:60}];}
+
+function startGame(){
+  bird={x:W*.22,y:H/2,vy:0,r:14,angle:0};
+  pipes=[];score=0;running=false;frameCount=0;
+  makeStars();makeClouds();
+  cancelAnimationFrame(raf);draw();
+  setMsg('Tap / Space to flap!');
+  document.getElementById('score').textContent=0;
+}
+
+function flap(){
+  if(!running){running=true;setMsg('');}
+  bird.vy=FLAP;
+}
+
+function loop(){
+  raf=requestAnimationFrame(loop);
+  frameCount++;
+  const spd=1+Math.floor(score/10)*.15;
+  document.getElementById('speed').textContent=(spd).toFixed(1);
+  // Spawn pipes
+  if(frameCount%(Math.floor(90/spd))===0){
+    const minY=H*.12,maxY=H*.6;
+    const topH=minY+Math.random()*(maxY-minY);
+    pipes.push({x:W,topH,passed:false});
+  }
+  // Move & update
+  bird.vy+=GRAVITY;bird.y+=bird.vy;
+  bird.angle=Math.max(-25,Math.min(70,bird.vy*4));
+  pipes.forEach(p=>{p.x-=PIPE_SPEED*spd;});
+  pipes=pipes.filter(p=>p.x>-PIPE_W-10);
+  // Clouds
+  clouds.forEach(cl=>{cl.x-=.4;if(cl.x+cl.w<0)cl.x=W+cl.w;});
+  draw();
+  // Score
+  pipes.forEach(p=>{
+    if(!p.passed&&p.x+PIPE_W<bird.x){p.passed=true;score++;document.getElementById('score').textContent=score;if(score>best){best=score;document.getElementById('best').textContent=best;}}
+    // Collision
+    const birdL=bird.x-bird.r+2,birdR=bird.x+bird.r-2,birdT=bird.y-bird.r+2,birdB=bird.y+bird.r-2;
+    if(birdR>p.x&&birdL<p.x+PIPE_W){
+      if(birdT<p.topH||birdB>p.topH+GAP){die();}
+    }
+  });
+  if(bird.y>H-bird.r||bird.y<bird.r){die();}
+}
+
+function draw(){
+  // Sky gradient
+  const sky=ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,'#020d18');sky.addColorStop(.7,'#051830');sky.addColorStop(1,'#071025');
+  ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+  // Stars
+  stars.forEach(s=>{
+    s.t+=.02;const b=.4+.3*Math.sin(s.t);
+    ctx.fillStyle=`rgba(255,255,240,${b})`;ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fill();
+  });
+  // Clouds
+  clouds.forEach(cl=>{
+    ctx.fillStyle='rgba(120,160,200,.15)';
+    ctx.beginPath();ctx.ellipse(cl.x,cl.y,cl.w/2,14,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(cl.x-cl.w*.25,cl.y+4,cl.w*.3,10,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(cl.x+cl.w*.25,cl.y+5,cl.w*.28,9,0,0,Math.PI*2);ctx.fill();
+  });
+  // Pipes
+  pipes.forEach(p=>{
+    // Top pipe
+    const tg=ctx.createLinearGradient(p.x,0,p.x+PIPE_W,0);
+    tg.addColorStop(0,'#14532d');tg.addColorStop(.5,'#22c55e');tg.addColorStop(1,'#15803d');
+    ctx.fillStyle=tg;ctx.shadowColor='#22c55e';ctx.shadowBlur=8;
+    ctx.beginPath();ctx.roundRect(p.x,0,PIPE_W,p.topH-4,0);ctx.fill();
+    ctx.beginPath();ctx.roundRect(p.x-4,p.topH-16,PIPE_W+8,16,[0,0,6,6]);ctx.fill();
+    // Bottom pipe
+    const by2=p.topH+GAP;
+    ctx.beginPath();ctx.roundRect(p.x-4,by2,PIPE_W+8,16,[6,6,0,0]);ctx.fill();
+    ctx.beginPath();ctx.roundRect(p.x,by2+16,PIPE_W,H-by2-16,0);ctx.fill();
+    ctx.shadowBlur=0;
+  });
+  // Ground
+  ctx.fillStyle='#0c2818';ctx.fillRect(0,H-8,W,8);
+  ctx.fillStyle='#16a34a';ctx.fillRect(0,H-12,W,4);
+  // Bird
+  ctx.save();
+  ctx.translate(bird.x,bird.y);
+  ctx.rotate(bird.angle*Math.PI/180);
+  ctx.shadowColor='#fde68a';ctx.shadowBlur=12;
+  ctx.fillStyle='#fde68a';ctx.beginPath();ctx.ellipse(0,0,bird.r,bird.r*.75,0,0,Math.PI*2);ctx.fill();
+  // Wing
+  const wingY=Math.sin(frameCount*.3)*4;
+  ctx.fillStyle='#f59e0b';ctx.beginPath();ctx.ellipse(-4,wingY,8,5,-.3,0,Math.PI*2);ctx.fill();
+  // Eye
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(5,-3,5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#1e293b';ctx.beginPath();ctx.arc(6,-3,3,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(7,-4,1,0,Math.PI*2);ctx.fill();
+  // Beak
+  ctx.fillStyle='#ef4444';ctx.beginPath();ctx.moveTo(12,-2);ctx.lineTo(18,0);ctx.lineTo(12,3);ctx.closePath();ctx.fill();
+  ctx.shadowBlur=0;ctx.restore();
+  // Score overlay
+  if(!running){
+    ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(0,H*.38,W,H*.2);
+    ctx.fillStyle='#fde68a';ctx.font='bold 1.5rem Segoe UI';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('TAP TO FLAP!',W/2,H*.48);
+  }
+  if(running){
+    ctx.fillStyle='rgba(255,255,255,.9)';ctx.font='bold 2rem Segoe UI';ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.shadowColor='rgba(0,0,0,.5)';ctx.shadowBlur=6;ctx.fillText(score,W/2,10);ctx.shadowBlur=0;
+  }
+}
+
+function die(){
+  running=false;cancelAnimationFrame(raf);
+  setMsg(`💥 Score: ${score} · Best: ${best} — Tap to retry!`);
+  draw();
+}
+
+C.addEventListener('click',()=>{if(!running){startGame();setTimeout(()=>{flap();running=true;raf=requestAnimationFrame(loop);},50);}else flap();});
+C.addEventListener('touchstart',e=>{e.preventDefault();if(!running){startGame();setTimeout(()=>{flap();running=true;raf=requestAnimationFrame(loop);},50);}else flap();},{passive:false});
+document.addEventListener('keydown',e=>{if(e.key===' '||e.key==='ArrowUp'){if(!running){startGame();setTimeout(()=>{flap();running=true;raf=requestAnimationFrame(loop);},50);}else flap();e.preventDefault();}});
+
+function setMsg(m){document.getElementById('msg').textContent=m;}
+startGame();
+</script>
+</body>
+</html>

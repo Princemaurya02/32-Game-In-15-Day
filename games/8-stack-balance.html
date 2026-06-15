@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stack Balance</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #080510; color: #fff; font-family: 'Segoe UI', sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 20px; overflow: hidden; }
+  h1 { font-size: 1.8rem; background: linear-gradient(135deg, #f59e0b, #fb923c); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 10px; }
+  .hud { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; justify-content: center; }
+  .stat { background: #0f0c18; border: 1px solid #1f1a30; border-radius: 10px; padding: 8px 16px; text-align: center; min-width: 80px; }
+  .stat-label { font-size: 0.62rem; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; }
+  .stat-val { font-size: 1.2rem; font-weight: 700; color: #f59e0b; }
+  canvas { border: 2px solid #1f1a30; border-radius: 12px; display: block; cursor: pointer; touch-action: none; }
+  .instructions { color: #6b7280; font-size: 0.8rem; margin-top: 10px; text-align: center; }
+  .next-block { background: #0f0c18; border: 1px solid #1f1a30; border-radius: 10px; padding: 10px 20px; margin-top: 10px; font-size: 0.85rem; color: #d1d5db; }
+  .next-block span { color: #f59e0b; font-weight: 700; }
+  .btn { background: linear-gradient(135deg, #92400e, #b45309); border: none; color: #fff; border-radius: 10px; padding: 10px 24px; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all .2s; margin-top: 14px; }
+  .btn:hover { transform: translateY(-2px); }
+  .win-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; align-items: center; justify-content: center; z-index: 100; }
+  .win-overlay.show { display: flex; }
+  .win-box { background: #0f0c18; border: 2px solid #f59e0b; border-radius: 20px; padding: 36px; text-align: center; animation: popIn .5s ease; }
+  @keyframes popIn { from{transform:scale(0.5);opacity:0} to{transform:scale(1);opacity:1} }
+  .win-emoji { font-size: 3.5rem; display: block; margin-bottom: 12px; }
+  .win-title { font-size: 1.8rem; color: #f59e0b; margin-bottom: 8px; }
+  .win-stats { color: #9ca3af; margin-bottom: 20px; }
+</style>
+</head>
+<body>
+<h1>🏗️ Stack Balance</h1>
+<div class="hud">
+  <div class="stat"><div class="stat-label">Score</div><div class="stat-val" id="score">0</div></div>
+  <div class="stat"><div class="stat-label">Level</div><div class="stat-val" id="level">1</div></div>
+  <div class="stat"><div class="stat-label">Goal</div><div class="stat-val" id="goal">5</div></div>
+</div>
+<canvas id="canvas"></canvas>
+<div class="instructions">Tap or click to drop the block • Stack <span id="goalTxt">5</span> without falling!</div>
+<div class="next-block">Next: <span id="nextSize">—</span></div>
+<button class="btn" onclick="startGame()">🔄 Restart</button>
+
+<div class="win-overlay" id="winOverlay">
+  <div class="win-box">
+    <span class="win-emoji" id="winEmoji">🏆</span>
+    <div class="win-title" id="winTitle">Level Complete!</div>
+    <div class="win-stats" id="winStats"></div>
+    <button class="btn" onclick="nextLevel()">Next Level →</button>
+    <br>
+    <button class="btn" style="background:#1f2937;margin-top:8px" onclick="closeWin()">Retry</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = Math.min(window.innerWidth - 40, 380);
+const H = Math.min(window.innerHeight - 280, 480);
+canvas.width = W; canvas.height = H;
+
+const COLORS = ['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#8b5cf6','#ec4899','#14b8a6'];
+const PLATFORM_Y = H - 40;
+const PLATFORM_W = W * 0.5;
+
+let blocks = [], fallingBlock = null, score = 0, gameOver = false, currentLevel = 1, goal = 5, raf;
+let sway = 0, swayDir = 1, swaySpeed = 1.5;
+
+function getBlockSizes(level) {
+  const base = Math.floor(W * 0.35);
+  const min = Math.floor(W * 0.15);
+  return { w: Math.max(min, base - level * 8), h: 28 };
+}
+
+function startGame() {
+  blocks = [];
+  score = 0;
+  gameOver = false;
+  sway = W/2;
+  swayDir = 1;
+  swaySpeed = 1.5 + currentLevel * 0.3;
+  document.getElementById('score').textContent = '0';
+  document.getElementById('level').textContent = currentLevel;
+  document.getElementById('goal').textContent = goal;
+  document.getElementById('goalTxt').textContent = goal;
+  document.getElementById('winOverlay').classList.remove('show');
+  spawnBlock();
+  cancelAnimationFrame(raf);
+  loop();
+}
+
+function spawnBlock() {
+  if (gameOver) return;
+  const sizes = getBlockSizes(currentLevel);
+  fallingBlock = {
+    x: sway - sizes.w/2,
+    y: 20,
+    w: sizes.w,
+    h: sizes.h,
+    color: COLORS[Math.floor(Math.random()*COLORS.length)],
+    vy: 0, vx: 0, rotation: 0, settled: false, falling: false,
+    swayX: sway
+  };
+  updateNextLabel(sizes);
+}
+
+function updateNextLabel(sizes) {
+  document.getElementById('nextSize').textContent = `${Math.round(sizes.w)}px wide block`;
+}
+
+function drop() {
+  if (!fallingBlock || fallingBlock.falling || gameOver) return;
+  fallingBlock.falling = true;
+  fallingBlock.vy = 2;
+}
+
+function getTopSurface() {
+  if (blocks.length === 0) return PLATFORM_Y;
+  return blocks[blocks.length-1].y;
+}
+
+function getTopBlockX() {
+  if (blocks.length === 0) return W/2 - PLATFORM_W/2;
+  return blocks[blocks.length-1].x;
+}
+
+function getTopBlockW() {
+  if (blocks.length === 0) return PLATFORM_W;
+  return blocks[blocks.length-1].w;
+}
+
+function loop() {
+  if (gameOver) return;
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#080510');
+  grad.addColorStop(1, '#100820');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Platform
+  ctx.fillStyle = '#2d2050';
+  ctx.beginPath();
+  ctx.roundRect(W/2 - PLATFORM_W/2, PLATFORM_Y, PLATFORM_W, 30, 8);
+  ctx.fill();
+  ctx.fillStyle = '#4c3a80';
+  ctx.beginPath();
+  ctx.roundRect(W/2 - PLATFORM_W/2, PLATFORM_Y, PLATFORM_W, 8, [8,8,0,0]);
+  ctx.fill();
+
+  // Draw blocks
+  blocks.forEach((b, i) => {
+    ctx.save();
+    ctx.translate(b.x + b.w/2, b.y + b.h/2);
+    if (b.rotation) ctx.rotate(b.rotation * Math.PI / 180);
+    ctx.fillStyle = b.color;
+    ctx.shadowColor = b.color;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.roundRect(-b.w/2, -b.h/2, b.w, b.h, 6);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+    // Update physics for unsettled blocks
+    if (!b.settled) {
+      b.vy += 0.3;
+      b.y += b.vy;
+      b.x += b.vx;
+      b.rotation += b.rotV || 0;
+      if (b.y > H + 100) { gameOver = true; showLose(); }
+    }
+  });
+
+  // Falling block
+  if (fallingBlock) {
+    if (!fallingBlock.falling) {
+      // Sway
+      sway += swayDir * swaySpeed;
+      if (sway > W - 20 || sway < 20) swayDir *= -1;
+      fallingBlock.x = sway - fallingBlock.w/2;
+    } else {
+      fallingBlock.vy += 0.4;
+      fallingBlock.y += fallingBlock.vy;
+
+      // Check landing
+      const surface = getTopSurface();
+      if (fallingBlock.y + fallingBlock.h >= surface) {
+        fallingBlock.y = surface - fallingBlock.h;
+        // Check overhang
+        const topX = getTopBlockX();
+        const topW = getTopBlockW();
+        const overlap = Math.min(fallingBlock.x + fallingBlock.w, topX + topW) - Math.max(fallingBlock.x, topX);
+
+        if (overlap <= 0) {
+          // Missed entirely - game over
+          fallingBlock.vy = -3;
+          fallingBlock.vx = (fallingBlock.x < topX ? -2 : 2);
+          fallingBlock.rotV = (fallingBlock.vx > 0 ? 3 : -3);
+          fallingBlock.settled = false;
+          blocks.push(fallingBlock);
+          fallingBlock = null;
+          gameOver = true;
+          setTimeout(showLose, 800);
+          raf = requestAnimationFrame(loop);
+          return;
+        }
+
+        // Clip block to overlap
+        const newX = Math.max(fallingBlock.x, topX);
+        const newW = overlap;
+        fallingBlock.x = newX;
+        fallingBlock.w = newW;
+        fallingBlock.settled = true;
+        fallingBlock.vy = 0;
+        blocks.push(fallingBlock);
+        score++;
+        document.getElementById('score').textContent = score;
+        swaySpeed = 1.5 + currentLevel * 0.3 + score * 0.1;
+
+        if (score >= goal) {
+          fallingBlock = null;
+          setTimeout(showWin, 400);
+          raf = requestAnimationFrame(loop);
+          return;
+        }
+
+        fallingBlock = null;
+        setTimeout(spawnBlock, 300);
+      }
+    }
+
+    if (fallingBlock) {
+      ctx.save();
+      ctx.translate(fallingBlock.x + fallingBlock.w/2, fallingBlock.y + fallingBlock.h/2);
+      ctx.fillStyle = fallingBlock.color;
+      ctx.shadowColor = fallingBlock.color;
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.roundRect(-fallingBlock.w/2, -fallingBlock.h/2, fallingBlock.w, fallingBlock.h, 6);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+
+      // Drop indicator
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+      ctx.setLineDash([4, 6]);
+      ctx.beginPath();
+      ctx.moveTo(fallingBlock.x + fallingBlock.w/2, fallingBlock.y + fallingBlock.h);
+      ctx.lineTo(fallingBlock.x + fallingBlock.w/2, getTopSurface());
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  // Score indicator
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.font = '14px Segoe UI';
+  ctx.textAlign = 'right';
+  ctx.fillText(`${score}/${goal}`, W - 14, 24);
+
+  raf = requestAnimationFrame(loop);
+}
+
+function showWin() {
+  gameOver = true;
+  document.getElementById('winEmoji').textContent = '🏆';
+  document.getElementById('winTitle').textContent = 'Level Complete!';
+  document.getElementById('winStats').textContent = `Stacked ${score} blocks perfectly!`;
+  document.getElementById('winOverlay').classList.add('show');
+}
+
+function showLose() {
+  document.getElementById('winEmoji').textContent = '💥';
+  document.getElementById('winTitle').textContent = 'Tower Fell!';
+  document.getElementById('winStats').textContent = `You stacked ${score} blocks. Try again!`;
+  document.getElementById('winOverlay').classList.add('show');
+}
+
+function nextLevel() {
+  currentLevel = Math.min(currentLevel + 1, 8);
+  goal = 3 + currentLevel;
+  startGame();
+}
+
+function closeWin() {
+  document.getElementById('winOverlay').classList.remove('show');
+  startGame();
+}
+
+canvas.addEventListener('click', drop);
+canvas.addEventListener('touchstart', e => { e.preventDefault(); drop(); }, {passive: false});
+
+startGame();
+</script>
+</body>
+</html>

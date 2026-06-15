@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Snake</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#050d05;color:#fff;font-family:'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:14px;touch-action:none}
+h1{font-size:1.7rem;background:linear-gradient(135deg,#22c55e,#86efac);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;letter-spacing:2px}
+.hud{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;justify-content:center}
+.stat{background:#0a160a;border:1px solid #14401a;border-radius:10px;padding:6px 14px;text-align:center;min-width:72px}
+.stat-label{font-size:.6rem;color:#6b7280;text-transform:uppercase;letter-spacing:1px}
+.stat-val{font-size:1.05rem;font-weight:700;color:#22c55e}
+.speed-bar{display:flex;gap:6px;margin-bottom:10px}
+.spd-btn{background:#0a160a;border:1px solid #14401a;color:#9ca3af;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:.75rem;transition:all .2s}
+.spd-btn.active{background:#14532d;border-color:#22c55e;color:#4ade80}
+canvas{border:2px solid #14401a;border-radius:12px;display:block;background:#061006}
+.dpad{display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(2,56px);gap:6px;margin-top:14px}
+.dpad-btn{background:#0a160a;border:1px solid #14401a;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;cursor:pointer;user-select:none;-webkit-user-select:none;transition:background .1s}
+.dpad-btn:active{background:#14532d}
+.up{grid-column:2;grid-row:1}.left{grid-column:1;grid-row:2}.down{grid-column:2;grid-row:2}.right{grid-column:3;grid-row:2}
+.msg{min-height:26px;font-size:.85rem;color:#6b7280;text-align:center;margin:8px 0}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;z-index:100}
+.overlay.show{display:flex}
+.ov-box{background:#0a160a;border:2px solid #22c55e;border-radius:20px;padding:36px;text-align:center;animation:pop .4s ease;max-width:280px;width:90%}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+.ov-emoji{font-size:3rem;display:block;margin-bottom:10px}
+.ov-title{font-size:1.7rem;color:#22c55e;margin-bottom:6px}
+.ov-sub{color:#9ca3af;margin-bottom:20px;font-size:.9rem}
+.btn{background:linear-gradient(135deg,#14532d,#16a34a);border:none;color:#fff;border-radius:10px;padding:9px 22px;cursor:pointer;font-size:.85rem;font-weight:700;transition:all .2s;margin:4px}
+.btn:hover{transform:translateY(-2px)}
+</style>
+</head>
+<body>
+<h1>🐍 SNAKE</h1>
+<div class="hud">
+  <div class="stat"><div class="stat-label">Score</div><div class="stat-val" id="score">0</div></div>
+  <div class="stat"><div class="stat-label">Best</div><div class="stat-val" id="best">0</div></div>
+  <div class="stat"><div class="stat-label">Level</div><div class="stat-val" id="level">1</div></div>
+  <div class="stat"><div class="stat-label">Length</div><div class="stat-val" id="length">3</div></div>
+</div>
+<div class="speed-bar">
+  <button class="spd-btn active" onclick="setSpeed(150,1,this)">Slow</button>
+  <button class="spd-btn" onclick="setSpeed(100,2,this)">Normal</button>
+  <button class="spd-btn" onclick="setSpeed(65,3,this)">Fast</button>
+  <button class="spd-btn" onclick="setSpeed(40,4,this)">Insane</button>
+</div>
+<canvas id="c"></canvas>
+<div class="msg" id="msg">Press Space or tap to start!</div>
+<div class="dpad">
+  <div class="dpad-btn up" ontouchstart="dir(0,-1);ev(event)" onmousedown="dir(0,-1)">↑</div>
+  <div class="dpad-btn left" ontouchstart="dir(-1,0);ev(event)" onmousedown="dir(-1,0)">←</div>
+  <div class="dpad-btn down" ontouchstart="dir(0,1);ev(event)" onmousedown="dir(0,1)">↓</div>
+  <div class="dpad-btn right" ontouchstart="dir(1,0);ev(event)" onmousedown="dir(1,0)">→</div>
+</div>
+<div class="overlay" id="ov">
+  <div class="ov-box">
+    <span class="ov-emoji" id="ovEmoji">💀</span>
+    <div class="ov-title" id="ovTitle">Game Over</div>
+    <div class="ov-sub" id="ovSub"></div>
+    <button class="btn" onclick="startGame()">▶ Play Again</button>
+  </div>
+</div>
+<script>
+const C=document.getElementById('c'),ctx=C.getContext('2d');
+const SZ=Math.min(360,window.innerWidth-32);
+const GRID=20,CELL=Math.floor(SZ/GRID);
+C.width=C.height=GRID*CELL;
+let snake,dx,dy,food,bonus,score,best=0,running,interval,speed=150,speedLevel=1;
+let touchStart=null;
+
+function setSpeed(ms,lvl,btn){
+  speed=ms;speedLevel=lvl;
+  document.querySelectorAll('.spd-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(running){clearInterval(interval);interval=setInterval(tick,speed);}
+}
+
+function startGame(){
+  document.getElementById('ov').classList.remove('show');
+  snake=[{x:10,y:10},{x:9,y:10},{x:8,y:10}];
+  dx=1;dy=0;score=0;bonus=null;running=true;
+  spawnFood();updateHUD();setMsg('');
+  clearInterval(interval);interval=setInterval(tick,speed);
+}
+
+function spawnFood(){
+  do{food={x:rnd(GRID),y:rnd(GRID)}}while(snake.some(s=>s.x===food.x&&s.y===food.y));
+  if(score>0&&score%50===0&&!bonus){
+    do{bonus={x:rnd(GRID),y:rnd(GRID),t:150}}while(snake.some(s=>s.x===bonus.x&&s.y===bonus.y)||bonus.x===food.x&&bonus.y===food.y);
+  }
+}
+
+function rnd(n){return Math.floor(Math.random()*n);}
+
+function tick(){
+  if(!running)return;
+  const head={x:snake[0].x+dx,y:snake[0].y+dy};
+  if(head.x<0||head.x>=GRID||head.y<0||head.y>=GRID||snake.some(s=>s.x===head.x&&s.y===head.y)){
+    gameOver();return;
+  }
+  snake.unshift(head);
+  let ate=false;
+  if(head.x===food.x&&head.y===food.y){ate=true;score+=10*speedLevel;spawnFood();}
+  else if(bonus&&head.x===bonus.x&&head.y===bonus.y){ate=true;score+=50*speedLevel;bonus=null;}
+  else snake.pop();
+  if(bonus){bonus.t--;if(bonus.t<=0)bonus=null;}
+  updateHUD();draw();
+}
+
+function draw(){
+  ctx.fillStyle='#061006';ctx.fillRect(0,0,C.width,C.height);
+  // Grid dots
+  ctx.fillStyle='rgba(34,197,94,.06)';
+  for(let r=0;r<GRID;r++)for(let c=0;c<GRID;c++){ctx.beginPath();ctx.arc(c*CELL+CELL/2,r*CELL+CELL/2,1.5,0,Math.PI*2);ctx.fill();}
+  // Snake
+  snake.forEach((s,i)=>{
+    const t=1-i/snake.length;
+    ctx.fillStyle=`rgba(34,${Math.floor(100+t*100)},94,${.7+t*.3})`;
+    ctx.shadowColor='#22c55e';ctx.shadowBlur=i===0?14:4;
+    ctx.beginPath();ctx.roundRect(s.x*CELL+1,s.y*CELL+1,CELL-2,CELL-2,i===0?6:4);ctx.fill();
+  });
+  ctx.shadowBlur=0;
+  // Food
+  ctx.fillStyle='#ef4444';ctx.shadowColor='#ef4444';ctx.shadowBlur=16;
+  ctx.beginPath();ctx.arc(food.x*CELL+CELL/2,food.y*CELL+CELL/2,CELL/2-2,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+  // Bonus
+  if(bonus){
+    const pulse=.7+.3*Math.sin(Date.now()/150);
+    ctx.fillStyle=`rgba(250,204,21,${pulse})`;ctx.shadowColor='#facc15';ctx.shadowBlur=20;
+    ctx.font=`${CELL-2}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('⭐',bonus.x*CELL+CELL/2,bonus.y*CELL+CELL/2);
+    ctx.shadowBlur=0;
+  }
+}
+
+function gameOver(){
+  running=false;clearInterval(interval);
+  if(score>best)best=score;
+  document.getElementById('ovEmoji').textContent=score>best-1?'🏆':'💀';
+  document.getElementById('ovTitle').textContent=score>0&&score===best?'New Best!':'Game Over';
+  document.getElementById('ovSub').textContent=`Score: ${score} · Length: ${snake.length}`;
+  document.getElementById('ov').classList.add('show');
+  updateHUD();
+}
+
+function dir(nx,ny){
+  if(!running){startGame();return;}
+  if(nx===1&&dx===-1||nx===-1&&dx===1)return;
+  if(ny===1&&dy===-1||ny===-1&&dy===1)return;
+  dx=nx;dy=ny;
+}
+
+function ev(e){e.preventDefault();}
+
+function updateHUD(){
+  document.getElementById('score').textContent=score;
+  document.getElementById('best').textContent=best;
+  document.getElementById('level').textContent=speedLevel;
+  document.getElementById('length').textContent=snake?snake.length:3;
+}
+function setMsg(m){document.getElementById('msg').textContent=m;}
+
+document.addEventListener('keydown',e=>{
+  const map={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],w:[0,-1],s:[0,1],a:[-1,0],d:[1,0]};
+  const d=map[e.key];
+  if(d){dir(...d);e.preventDefault();}
+  if(e.key===' '){if(!running)startGame();e.preventDefault();}
+});
+
+C.addEventListener('touchstart',e=>{touchStart=e.touches[0];e.preventDefault();},{passive:false});
+C.addEventListener('touchend',e=>{
+  if(!touchStart)return;
+  const dx2=e.changedTouches[0].clientX-touchStart.clientX,dy2=e.changedTouches[0].clientY-touchStart.clientY;
+  if(Math.abs(dx2)<10&&Math.abs(dy2)<10){if(!running)startGame();return;}
+  if(Math.abs(dx2)>Math.abs(dy2))dir(dx2>0?1:-1,0);else dir(0,dy2>0?1:-1);
+  touchStart=null;e.preventDefault();
+},{passive:false});
+
+// Initial draw
+ctx.fillStyle='#061006';ctx.fillRect(0,0,C.width,C.height);
+ctx.fillStyle='rgba(34,197,94,.5)';ctx.font='bold 1.4rem Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+ctx.fillText('Press Space or Tap to Start',C.width/2,C.height/2);
+</script>
+</body>
+</html>

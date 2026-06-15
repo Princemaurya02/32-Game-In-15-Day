@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Block Fit</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #040814; color: #fff; font-family: 'Segoe UI', sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 16px; }
+  h1 { font-size: 1.8rem; background: linear-gradient(135deg, #06b6d4, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 10px; }
+  .hud { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; justify-content: center; }
+  .stat { background: #080c1a; border: 1px solid #131d35; border-radius: 10px; padding: 8px 16px; text-align: center; min-width: 80px; }
+  .stat-label { font-size: 0.62rem; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; }
+  .stat-val { font-size: 1.2rem; font-weight: 700; color: #06b6d4; }
+  .layout { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+  canvas { border: 2px solid #131d35; border-radius: 12px; display: block; cursor: pointer; touch-action: none; }
+  .pieces-panel { display: flex; flex-direction: column; gap: 10px; }
+  .piece-slot { background: #080c1a; border: 2px solid #131d35; border-radius: 12px; padding: 10px; cursor: pointer; transition: all .2s; position: relative; display: flex; align-items: center; justify-content: center; }
+  .piece-slot.selected { border-color: #06b6d4; box-shadow: 0 0 16px rgba(6,182,212,0.3); }
+  .piece-slot.used { opacity: 0.2; pointer-events: none; }
+  .piece-canvas { display: block; }
+  .btn { background: linear-gradient(135deg, #0c4a6e, #0369a1); border: none; color: #fff; border-radius: 10px; padding: 10px 24px; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all .2s; margin-top: 12px; }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(6,182,212,0.3); }
+  .combo-msg { font-size: 1.1rem; color: #06b6d4; font-weight: 700; min-height: 28px; text-align: center; margin-bottom: 6px; animation: fadeMsg .5s; }
+  @keyframes fadeMsg { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
+  .win-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; align-items: center; justify-content: center; z-index: 100; }
+  .win-overlay.show { display: flex; }
+  .win-box { background: #080c1a; border: 2px solid #06b6d4; border-radius: 20px; padding: 36px; text-align: center; animation: popIn .5s ease; }
+  @keyframes popIn { from{transform:scale(0.5);opacity:0} to{transform:scale(1);opacity:1} }
+  .win-emoji { font-size: 3.5rem; display: block; margin-bottom: 12px; }
+  .win-title { font-size: 1.8rem; background: linear-gradient(135deg, #06b6d4, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+  .win-stats { color: #9ca3af; margin-bottom: 20px; }
+  .hover-cell { background: rgba(6,182,212,0.3) !important; }
+</style>
+</head>
+<body>
+<h1>🧩 Block Fit</h1>
+<div class="hud">
+  <div class="stat"><div class="stat-label">Score</div><div class="stat-val" id="score">0</div></div>
+  <div class="stat"><div class="stat-label">Lines</div><div class="stat-val" id="lines">0</div></div>
+  <div class="stat"><div class="stat-label">Best</div><div class="stat-val" id="best">0</div></div>
+</div>
+<div class="combo-msg" id="comboMsg"></div>
+<div class="layout">
+  <canvas id="canvas"></canvas>
+  <div class="pieces-panel" id="piecesPanel"></div>
+</div>
+<button class="btn" onclick="startGame()">🔄 New Game</button>
+
+<div class="win-overlay" id="winOverlay">
+  <div class="win-box">
+    <span class="win-emoji">😵</span>
+    <div class="win-title">No More Moves!</div>
+    <div class="win-stats" id="winStats"></div>
+    <button class="btn" onclick="closeWin()">Play Again</button>
+  </div>
+</div>
+
+<script>
+const GRID = 8, CELL = Math.min(38, Math.floor((Math.min(window.innerWidth - 160, 320)) / GRID));
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+canvas.width = canvas.height = GRID * CELL;
+
+const PIECE_SHAPES = [
+  { shape: [[1,1],[1,1]], color: '#ef4444' }, // 2x2
+  { shape: [[1,1,1]], color: '#f97316' }, // 3x1
+  { shape: [[1],[1],[1]], color: '#eab308' }, // 1x3
+  { shape: [[1,1,1,1]], color: '#22c55e' }, // 4x1
+  { shape: [[1,0],[1,0],[1,1]], color: '#06b6d4' }, // L
+  { shape: [[0,1],[0,1],[1,1]], color: '#8b5cf6' }, // J
+  { shape: [[1,1,0],[0,1,1]], color: '#ec4899' }, // S
+  { shape: [[0,1,1],[1,1,0]], color: '#14b8a6' }, // Z
+  { shape: [[0,1,0],[1,1,1]], color: '#a855f7' }, // T
+  { shape: [[1,1],[1,0]], color: '#fb923c' },
+  { shape: [[1,1],[0,1]], color: '#4ade80' },
+  { shape: [[1]], color: '#60a5fa' }, // 1x1
+  { shape: [[1,1]], color: '#f472b6' }, // 1x2
+  { shape: [[1],[1]], color: '#34d399' }, // 2x1
+  { shape: [[1,1,1],[1,0,0]], color: '#fbbf24' },
+  { shape: [[1,1,1],[0,0,1]], color: '#a78bfa' },
+];
+
+let grid = [], score = 0, lines = 0, best = 0, pieces = [], selectedPiece = null;
+let hoverX = -1, hoverY = -1;
+
+function startGame() {
+  grid = Array.from({length: GRID}, () => Array(GRID).fill(null));
+  score = 0; lines = 0; selectedPiece = null;
+  document.getElementById('score').textContent = '0';
+  document.getElementById('lines').textContent = '0';
+  document.getElementById('winOverlay').classList.remove('show');
+  document.getElementById('comboMsg').textContent = '';
+  spawnPieces();
+  renderGrid();
+}
+
+function spawnPieces() {
+  pieces = [0,1,2].map(() => {
+    const p = PIECE_SHAPES[Math.floor(Math.random() * PIECE_SHAPES.length)];
+    return { ...p, shape: p.shape.map(r => [...r]), used: false };
+  });
+  renderPieces();
+}
+
+function renderPieces() {
+  const panel = document.getElementById('piecesPanel');
+  panel.innerHTML = '';
+  pieces.forEach((piece, pi) => {
+    const slot = document.createElement('div');
+    slot.className = 'piece-slot' + (piece.used ? ' used' : '') + (selectedPiece === pi ? ' selected' : '');
+    const pc = document.createElement('canvas');
+    pc.className = 'piece-canvas';
+    const sz = 16;
+    const rows = piece.shape.length, cols = piece.shape[0].length;
+    pc.width = cols * sz + 4; pc.height = rows * sz + 4;
+    const pctx = pc.getContext('2d');
+    piece.shape.forEach((row, r) => row.forEach((cell, c) => {
+      if (cell) {
+        pctx.fillStyle = piece.color;
+        pctx.shadowColor = piece.color;
+        pctx.shadowBlur = 6;
+        pctx.beginPath();
+        pctx.roundRect(c*sz+2, r*sz+2, sz-2, sz-2, 4);
+        pctx.fill();
+        pctx.shadowBlur = 0;
+      }
+    }));
+    slot.appendChild(pc);
+    slot.addEventListener('click', () => selectPiece(pi));
+    panel.appendChild(slot);
+  });
+}
+
+function selectPiece(idx) {
+  if (pieces[idx].used) return;
+  selectedPiece = selectedPiece === idx ? null : idx;
+  renderPieces();
+}
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  hoverX = Math.floor((e.clientX - rect.left) / CELL);
+  hoverY = Math.floor((e.clientY - rect.top) / CELL);
+  renderGrid();
+});
+
+canvas.addEventListener('mouseleave', () => { hoverX = -1; hoverY = -1; renderGrid(); });
+
+canvas.addEventListener('click', e => {
+  if (selectedPiece === null) return;
+  const rect = canvas.getBoundingClientRect();
+  const gx = Math.floor((e.clientX - rect.left) / CELL);
+  const gy = Math.floor((e.clientY - rect.top) / CELL);
+  placePiece(gx, gy);
+});
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (selectedPiece === null) return;
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches[0];
+  const gx = Math.floor((touch.clientX - rect.left) / CELL);
+  const gy = Math.floor((touch.clientY - rect.top) / CELL);
+  placePiece(gx, gy);
+}, {passive:false});
+
+function canPlace(piece, gx, gy) {
+  for (let r = 0; r < piece.shape.length; r++) {
+    for (let c = 0; c < piece.shape[r].length; c++) {
+      if (!piece.shape[r][c]) continue;
+      const nx = gx + c, ny = gy + r;
+      if (nx < 0 || nx >= GRID || ny < 0 || ny >= GRID) return false;
+      if (grid[ny][nx] !== null) return false;
+    }
+  }
+  return true;
+}
+
+function placePiece(gx, gy) {
+  const piece = pieces[selectedPiece];
+  if (!canPlace(piece, gx, gy)) return;
+  piece.shape.forEach((row, r) => row.forEach((cell, c) => {
+    if (cell) grid[gy + r][gx + c] = piece.color;
+  }));
+  pieces[selectedPiece].used = true;
+  score += piece.shape.flat().filter(Boolean).length;
+  document.getElementById('score').textContent = score;
+  selectedPiece = null;
+  clearLines();
+  renderGrid();
+  if (pieces.every(p => p.used)) spawnPieces();
+  else {
+    renderPieces();
+    checkGameOver();
+  }
+}
+
+function clearLines() {
+  let cleared = 0;
+  // Clear full rows
+  for (let r = GRID-1; r >= 0; r--) {
+    if (grid[r].every(c => c !== null)) {
+      grid.splice(r, 1);
+      grid.unshift(Array(GRID).fill(null));
+      cleared++;
+      r++;
+    }
+  }
+  // Clear full columns
+  for (let c = GRID-1; c >= 0; c--) {
+    if (grid.every(row => row[c] !== null)) {
+      for (let r = 0; r < GRID; r++) grid[r][c] = null;
+      cleared++;
+    }
+  }
+  if (cleared > 0) {
+    const pts = cleared * cleared * 50;
+    score += pts;
+    lines += cleared;
+    document.getElementById('score').textContent = score;
+    document.getElementById('lines').textContent = lines;
+    if (score > best) { best = score; document.getElementById('best').textContent = best; }
+    const msg = cleared >= 3 ? `🔥 ${cleared}x COMBO! +${pts}` : cleared === 2 ? `⚡ Double! +${pts}` : `✨ Line! +${pts}`;
+    document.getElementById('comboMsg').textContent = msg;
+    setTimeout(() => document.getElementById('comboMsg').textContent = '', 1500);
+  }
+}
+
+function checkGameOver() {
+  const available = pieces.filter(p => !p.used);
+  const hasMove = available.some(piece => {
+    for (let r = 0; r < GRID; r++) for (let c = 0; c < GRID; c++) if (canPlace(piece, c, r)) return true;
+    return false;
+  });
+  if (!hasMove) {
+    setTimeout(() => {
+      document.getElementById('winStats').textContent = `Score: ${score} · Lines: ${lines}`;
+      document.getElementById('winOverlay').classList.add('show');
+    }, 400);
+  }
+}
+
+function renderGrid() {
+  ctx.fillStyle = '#040814';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Grid lines
+  ctx.strokeStyle = '#0d1428';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= GRID; i++) {
+    ctx.beginPath(); ctx.moveTo(i*CELL, 0); ctx.lineTo(i*CELL, GRID*CELL); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i*CELL); ctx.lineTo(GRID*CELL, i*CELL); ctx.stroke();
+  }
+
+  // Hover preview
+  if (selectedPiece !== null && hoverX >= 0) {
+    const piece = pieces[selectedPiece];
+    const ok = canPlace(piece, hoverX, hoverY);
+    piece.shape.forEach((row, r) => row.forEach((cell, c) => {
+      if (!cell) return;
+      const px = (hoverX+c)*CELL, py = (hoverY+r)*CELL;
+      ctx.fillStyle = ok ? piece.color + '55' : '#ef444444';
+      ctx.fillRect(px+1, py+1, CELL-2, CELL-2);
+    }));
+  }
+
+  // Placed cells
+  for (let r = 0; r < GRID; r++) {
+    for (let c = 0; c < GRID; c++) {
+      if (!grid[r][c]) continue;
+      ctx.fillStyle = grid[r][c];
+      ctx.shadowColor = grid[r][c];
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.roundRect(c*CELL+2, r*CELL+2, CELL-4, CELL-4, 4);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      // Highlight
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      ctx.fillRect(c*CELL+3, r*CELL+3, CELL-6, 4);
+    }
+  }
+}
+
+function closeWin() {
+  document.getElementById('winOverlay').classList.remove('show');
+  startGame();
+}
+
+startGame();
+</script>
+</body>
+</html>

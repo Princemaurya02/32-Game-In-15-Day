@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Connect Four</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#06040f;color:#fff;font-family:'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:16px;touch-action:manipulation}
+h1{font-size:1.8rem;background:linear-gradient(135deg,#f59e0b,#ef4444);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px;letter-spacing:2px}
+.scores{display:flex;gap:14px;margin-bottom:12px;flex-wrap:wrap;justify-content:center}
+.score-box{background:#0f0c1a;border:1px solid #1e1830;border-radius:12px;padding:8px 18px;text-align:center;min-width:80px}
+.score-label{font-size:.62rem;color:#6b7280;text-transform:uppercase;letter-spacing:1px}
+.score-val{font-size:1.4rem;font-weight:800}
+.p1{color:#f59e0b}.p2{color:#ef4444}.dr{color:#64748b}
+.mode-bar,.diff-bar{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;justify-content:center}
+.mode-btn,.diff-btn{background:#0f0c1a;border:1px solid #1e1830;color:#9ca3af;border-radius:8px;padding:5px 13px;cursor:pointer;font-size:.75rem;transition:all .2s}
+.mode-btn.active{background:#2d1a00;border-color:#f59e0b;color:#fde68a}
+.diff-btn.active{background:#2d0a0a;border-color:#ef4444;color:#fca5a5}
+.board-wrap{background:#0d0b1e;border:3px solid #1e1830;border-radius:16px;padding:10px;margin-bottom:12px}
+.col-hints{display:flex;gap:5px;margin-bottom:4px}
+.col-hint{flex:1;height:20px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:4px;transition:background .15s;font-size:.9rem}
+.col-hint:hover{background:#1e1830}
+.board{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.cell{border-radius:50%;background:#06040f;border:2px solid #1a1530;transition:all .2s;cursor:pointer;position:relative}
+.cell.p1{background:radial-gradient(circle at 35% 35%,#fde68a,#f59e0b);border-color:#d97706;box-shadow:0 0 14px rgba(245,158,11,.5)}
+.cell.p2{background:radial-gradient(circle at 35% 35%,#fca5a5,#ef4444);border-color:#dc2626;box-shadow:0 0 14px rgba(239,68,68,.5)}
+.cell.win{animation:winPulse .5s infinite alternate}
+@keyframes winPulse{from{box-shadow:0 0 14px rgba(255,255,255,.3)}to{box-shadow:0 0 30px rgba(255,255,255,.8)}}
+.cell.drop{animation:dropIn .3s cubic-bezier(.175,.885,.32,1.275)}
+@keyframes dropIn{from{transform:scale(0)}to{transform:scale(1)}}
+.status{font-size:.95rem;color:#9ca3af;margin-bottom:10px;min-height:26px;text-align:center;font-weight:600}
+.btns{display:flex;gap:8px}
+.btn{border:none;color:#fff;border-radius:10px;padding:9px 22px;cursor:pointer;font-size:.85rem;font-weight:700;transition:all .2s}
+.btn-new{background:linear-gradient(135deg,#92400e,#d97706)}
+.btn-reset{background:#1a1530}
+.btn:hover{transform:translateY(-2px)}
+</style>
+</head>
+<body>
+<h1>🔴 Connect Four</h1>
+<div class="scores">
+  <div class="score-box"><div class="score-label" id="p1Label">You 🟡</div><div class="score-val p1" id="s1">0</div></div>
+  <div class="score-box"><div class="score-label">Draw</div><div class="score-val dr" id="sd">0</div></div>
+  <div class="score-box"><div class="score-label" id="p2Label">AI 🔴</div><div class="score-val p2" id="s2">0</div></div>
+</div>
+<div class="mode-bar">
+  <button class="mode-btn active" onclick="setMode('ai',this)">vs AI</button>
+  <button class="mode-btn" onclick="setMode('2p',this)">2 Players</button>
+</div>
+<div class="diff-bar" id="diffBar">
+  <button class="diff-btn active" onclick="setDiff(1,this)">Easy</button>
+  <button class="diff-btn" onclick="setDiff(4,this)">Medium</button>
+  <button class="diff-btn" onclick="setDiff(7,this)">Hard</button>
+</div>
+<div class="status" id="status">Your turn 🟡</div>
+<div class="board-wrap">
+  <div class="col-hints" id="colHints"></div>
+  <div class="board" id="board"></div>
+</div>
+<div class="btns">
+  <button class="btn btn-new" onclick="newGame()">New Game</button>
+  <button class="btn btn-reset" onclick="resetScores()">Reset</button>
+</div>
+<script>
+const ROWS=6,COLS=7;
+let grid,turn,over,mode='ai',depth=4;
+let s1=0,s2=0,sd=0;
+
+function setMode(m,btn){
+  mode=m;
+  document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
+  document.getElementById('diffBar').style.display=m==='ai'?'flex':'none';
+  document.getElementById('p1Label').textContent=m==='ai'?'You 🟡':'P1 🟡';
+  document.getElementById('p2Label').textContent=m==='ai'?'AI 🔴':'P2 🔴';
+  newGame();
+}
+function setDiff(d,btn){depth=d;document.querySelectorAll('.diff-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');newGame();}
+
+function newGame(){
+  grid=Array.from({length:ROWS},()=>Array(COLS).fill(0));
+  turn=1;over=false;
+  render();setStatus(turnMsg());
+}
+
+function turnMsg(){
+  if(mode==='ai')return turn===1?'Your turn 🟡':'AI thinking... 🔴';
+  return turn===1?'Player 1 🟡':'Player 2 🔴';
+}
+
+function drop(col){
+  if(over||!canDrop(grid,col))return;
+  if(mode==='ai'&&turn===2)return;
+  makeMove(col);
+}
+
+function makeMove(col){
+  const row=getRow(grid,col);if(row<0)return;
+  grid[row][col]=turn;
+  render();
+  const win=checkWin(grid,row,col,turn);
+  if(win){endGame(win,turn);return;}
+  if(grid[0].every(c=>c)){endGame(null,0);return;}
+  turn=turn===1?2:1;
+  setStatus(turnMsg());
+  if(mode==='ai'&&turn===2&&!over)setTimeout(aiMove,350);
+}
+
+function canDrop(g,col){return g[0][col]===0;}
+function getRow(g,col){for(let r=ROWS-1;r>=0;r--)if(!g[r][col])return r;return -1;}
+
+function aiMove(){
+  if(over)return;
+  let bestScore=-Infinity,bestCol=3;
+  const cols=shuffleCols();
+  for(const c of cols){
+    if(!canDrop(grid,c))continue;
+    const r=getRow(grid,c);grid[r][c]=2;
+    const s=minimax(grid,depth-1,false,-Infinity,Infinity);
+    grid[r][c]=0;
+    if(s>bestScore){bestScore=s;bestCol=c;}
+  }
+  makeMove(bestCol);
+}
+
+function shuffleCols(){
+  const a=[3,2,4,1,5,0,6];
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+  return a;
+}
+
+function minimax(g,d,isMax,alpha,beta){
+  const moves=[];
+  for(let c=0;c<COLS;c++){if(!canDrop(g,c))continue;const r=getRow(g,c);g[r][c]=isMax?2:1;const w=checkWin(g,r,c,isMax?2:1);g[r][c]=0;if(w)moves.push({c,r,w:isMax?2:1});}
+  for(const m of moves){if(m.w===2)return 100+d;if(m.w===1)return -100-d;}
+  if(d===0)return evalBoard(g);
+  if(g[0].every(c=>c))return 0;
+  if(isMax){let best=-Infinity;for(let c=0;c<COLS;c++){if(!canDrop(g,c))continue;const r=getRow(g,c);g[r][c]=2;const s=minimax(g,d-1,false,alpha,beta);g[r][c]=0;best=Math.max(best,s);alpha=Math.max(alpha,s);if(beta<=alpha)break;}return best;}
+  else{let best=Infinity;for(let c=0;c<COLS;c++){if(!canDrop(g,c))continue;const r=getRow(g,c);g[r][c]=1;const s=minimax(g,d-1,true,alpha,beta);g[r][c]=0;best=Math.min(best,s);beta=Math.min(beta,s);if(beta<=alpha)break;}return best;}
+}
+
+function evalBoard(g){
+  let score=0;
+  // Center column preference
+  const center=g.map(r=>r[3]);const cc=center.filter(v=>v===2).length;score+=cc*3;
+  // Horizontal, vertical, diagonal
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS-3;c++){score+=evalWindow([g[r][c],g[r][c+1],g[r][c+2],g[r][c+3]]);}
+  for(let r=0;r<ROWS-3;r++)for(let c=0;c<COLS;c++){score+=evalWindow([g[r][c],g[r+1][c],g[r+2][c],g[r+3][c]]);}
+  for(let r=0;r<ROWS-3;r++)for(let c=0;c<COLS-3;c++){score+=evalWindow([g[r][c],g[r+1][c+1],g[r+2][c+2],g[r+3][c+3]]);}
+  for(let r=3;r<ROWS;r++)for(let c=0;c<COLS-3;c++){score+=evalWindow([g[r][c],g[r-1][c+1],g[r-2][c+2],g[r-3][c+3]]);}
+  return score;
+}
+
+function evalWindow(w){
+  const p2=w.filter(v=>v===2).length,p1=w.filter(v=>v===1).length,empty=w.filter(v=>v===0).length;
+  if(p2===4)return 100;if(p2===3&&empty===1)return 5;if(p2===2&&empty===2)return 2;
+  if(p1===3&&empty===1)return -4;return 0;
+}
+
+function checkWin(g,r,c,p){
+  const dirs=[[0,1],[1,0],[1,1],[1,-1]];
+  for(const[dr,dc] of dirs){
+    let cells=[[r,c]];
+    for(let i=1;i<4;i++){const nr=r+dr*i,nc=c+dc*i;if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&g[nr][nc]===p)cells.push([nr,nc]);else break;}
+    for(let i=1;i<4;i++){const nr=r-dr*i,nc=c-dc*i;if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&g[nr][nc]===p)cells.push([nr,nc]);else break;}
+    if(cells.length>=4)return cells.slice(0,4);
+  }
+  return null;
+}
+
+function endGame(winCells,winner){
+  over=true;
+  if(winner===1){s1++;document.getElementById('s1').textContent=s1;setStatus(mode==='ai'?'🎉 You win!':'🎉 Player 1 wins!');}
+  else if(winner===2){s2++;document.getElementById('s2').textContent=s2;setStatus(mode==='ai'?'🤖 AI wins!':'🎉 Player 2 wins!');}
+  else{sd++;document.getElementById('sd').textContent=sd;setStatus("🤝 It's a draw!");}
+  if(winCells){
+    winCells.forEach(([r,c])=>{
+      const el=document.getElementById('board').children[r*COLS+c];
+      if(el)el.classList.add('win');
+    });
+  }
+}
+
+function resetScores(){s1=0;s2=0;sd=0;document.getElementById('s1').textContent=0;document.getElementById('s2').textContent=0;document.getElementById('sd').textContent=0;newGame();}
+function setStatus(m){document.getElementById('status').textContent=m;}
+
+function render(){
+  const b=document.getElementById('board'),h=document.getElementById('colHints');
+  const cellSz=Math.min(46,Math.floor((Math.min(window.innerWidth-50,360))/COLS));
+  b.style.gridTemplateColumns=`repeat(${COLS},${cellSz}px)`;
+  b.innerHTML='';h.innerHTML='';
+  for(let c=0;c<COLS;c++){
+    const hint=document.createElement('div');hint.className='col-hint';
+    hint.style.width=cellSz+'px';
+    if(!over&&canDrop(grid,c)){hint.textContent=turn===1?'🟡':'🔴';hint.onclick=()=>drop(c);}
+    h.appendChild(hint);
+  }
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const el=document.createElement('div');el.className='cell';
+    el.style.width=el.style.height=cellSz+'px';
+    if(grid[r][c]===1)el.classList.add('p1');
+    else if(grid[r][c]===2)el.classList.add('p2');
+    if(!over&&grid[r][c]===0){el.onclick=()=>drop(c);el.style.cursor='pointer';}
+    b.appendChild(el);
+  }
+}
+
+newGame();
+</script>
+</body>
+</html>

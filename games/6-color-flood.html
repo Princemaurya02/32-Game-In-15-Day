@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Color Flood</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0d0008; color: #fff; font-family: 'Segoe UI', sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+  h1 { font-size: 1.8rem; background: linear-gradient(135deg, #f472b6, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 12px; }
+  .hud { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; justify-content: center; }
+  .stat { background: #150010; border: 1px solid #2d0030; border-radius: 10px; padding: 8px 16px; text-align: center; min-width: 80px; }
+  .stat-label { font-size: 0.62rem; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; }
+  .stat-val { font-size: 1.2rem; font-weight: 700; color: #f472b6; }
+  .moves-bar { width: 300px; max-width: 90vw; height: 8px; background: #2d0030; border-radius: 4px; margin-bottom: 16px; overflow: hidden; }
+  .moves-fill { height: 100%; background: linear-gradient(90deg, #22c55e, #f472b6); border-radius: 4px; transition: width .3s; }
+  canvas { border: 2px solid #2d0030; border-radius: 12px; display: block; cursor: default; }
+  .color-palette { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; justify-content: center; }
+  .color-btn { width: 50px; height: 50px; border-radius: 12px; border: 3px solid transparent; cursor: pointer; transition: all .2s; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+  .color-btn:hover { transform: scale(1.15); }
+  .color-btn.selected { border-color: #fff; transform: scale(1.2); box-shadow: 0 0 16px rgba(255,255,255,0.4); }
+  .btn { background: linear-gradient(135deg, #7e22ce, #a21caf); border: none; color: #fff; border-radius: 10px; padding: 10px 24px; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all .2s; margin-top: 14px; }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(167,68,220,0.4); }
+  .level-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+  .level-btn { background: #150010; border: 1px solid #2d0030; color: #9ca3af; border-radius: 8px; padding: 6px 14px; cursor: pointer; font-size: 0.8rem; transition: all .2s; }
+  .level-btn.active { background: #4a044e; border-color: #c084fc; color: #c084fc; }
+  .win-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; align-items: center; justify-content: center; z-index: 100; }
+  .win-overlay.show { display: flex; }
+  .win-box { background: #150010; border: 2px solid #c084fc; border-radius: 20px; padding: 36px; text-align: center; animation: popIn .5s ease; }
+  @keyframes popIn { from{transform:scale(0.5);opacity:0} to{transform:scale(1);opacity:1} }
+  .win-emoji { font-size: 3.5rem; display: block; margin-bottom: 12px; }
+  .win-title { font-size: 1.8rem; background: linear-gradient(135deg, #f472b6, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+  .win-stats { color: #9ca3af; margin-bottom: 20px; }
+</style>
+</head>
+<body>
+<h1>🎨 Color Flood</h1>
+<div class="hud">
+  <div class="stat"><div class="stat-label">Level</div><div class="stat-val" id="level">1</div></div>
+  <div class="stat"><div class="stat-label">Moves</div><div class="stat-val" id="moves">0</div></div>
+  <div class="stat"><div class="stat-label">Max</div><div class="stat-val" id="maxMoves">25</div></div>
+</div>
+<div class="moves-bar"><div class="moves-fill" id="movesFill" style="width:100%"></div></div>
+<div class="level-bar">
+  <button class="level-btn active" onclick="startGame(1)">Easy</button>
+  <button class="level-btn" onclick="startGame(2)">Medium</button>
+  <button class="level-btn" onclick="startGame(3)">Hard</button>
+</div>
+<canvas id="canvas"></canvas>
+<div class="color-palette" id="palette"></div>
+<button class="btn" onclick="startGame(currentLevel)">🔄 New Game</button>
+
+<div class="win-overlay" id="winOverlay">
+  <div class="win-box">
+    <span class="win-emoji" id="winEmoji">🌈</span>
+    <div class="win-title" id="winTitle">Flooded!</div>
+    <div class="win-stats" id="winStats"></div>
+    <button class="btn" onclick="nextLevel()">Next Level →</button>
+    <br>
+    <button class="btn" style="background:#1f2937;margin-top:8px" onclick="closeWin()">Try Again</button>
+  </div>
+</div>
+
+<script>
+const COLORS = ['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#8b5cf6'];
+const LEVELS_CONFIG = [
+  {size: 10, maxMoves: 22, colors: 4},
+  {size: 14, maxMoves: 28, colors: 5},
+  {size: 18, maxMoves: 35, colors: 6},
+];
+let board = [], size = 10, maxMoves = 22, moves = 0, currentLevel = 1, numColors = 4;
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+function startGame(lvl) {
+  currentLevel = lvl;
+  document.querySelectorAll('.level-btn').forEach((b,i) => b.classList.toggle('active', i+1===lvl));
+  const cfg = LEVELS_CONFIG[lvl-1];
+  size = cfg.size; maxMoves = cfg.maxMoves; numColors = cfg.colors; moves = 0;
+  document.getElementById('level').textContent = lvl;
+  document.getElementById('moves').textContent = '0';
+  document.getElementById('maxMoves').textContent = maxMoves;
+  document.getElementById('movesFill').style.width = '100%';
+  document.getElementById('winOverlay').classList.remove('show');
+
+  board = [];
+  for (let i = 0; i < size*size; i++) {
+    board.push(Math.floor(Math.random() * numColors));
+  }
+
+  const maxW = Math.min(window.innerWidth - 40, 360);
+  const cell = Math.floor(maxW / size);
+  canvas.width = canvas.height = size * cell;
+  buildPalette();
+  draw(cell);
+}
+
+function buildPalette() {
+  const p = document.getElementById('palette');
+  p.innerHTML = '';
+  COLORS.slice(0, numColors).forEach((c, i) => {
+    const btn = document.createElement('div');
+    btn.className = 'color-btn';
+    btn.style.background = c;
+    btn.addEventListener('click', () => flood(i));
+    p.appendChild(btn);
+  });
+}
+
+function draw(cell) {
+  if (!cell) cell = Math.floor(canvas.width / size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      ctx.fillStyle = COLORS[board[y*size+x] % numColors];
+      ctx.fillRect(x*cell, y*cell, cell, cell);
+    }
+  }
+}
+
+function flood(colorIdx) {
+  const currentColor = board[0];
+  if (colorIdx === currentColor) return;
+  moves++;
+  document.getElementById('moves').textContent = moves;
+  const pct = Math.max(0, (maxMoves - moves) / maxMoves * 100);
+  document.getElementById('movesFill').style.width = pct + '%';
+  document.getElementById('movesFill').style.background = pct > 50 ? 'linear-gradient(90deg, #22c55e, #f472b6)' : pct > 25 ? 'linear-gradient(90deg, #f97316, #ef4444)' : '#ef4444';
+
+  // BFS flood fill from (0,0)
+  const queue = [0];
+  const visited = new Set([0]);
+  while (queue.length) {
+    const idx = queue.shift();
+    board[idx] = colorIdx;
+    const x = idx % size, y = Math.floor(idx / size);
+    [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy]) => {
+      const nx = x+dx, ny = y+dy;
+      if (nx<0||nx>=size||ny<0||ny>=size) return;
+      const nIdx = ny*size+nx;
+      if (!visited.has(nIdx) && board[nIdx] === currentColor) {
+        visited.add(nIdx);
+        queue.push(nIdx);
+      }
+    });
+  }
+
+  const cell = Math.floor(canvas.width / size);
+  draw(cell);
+
+  // Check win
+  if (board.every(c => c === colorIdx)) {
+    setTimeout(showWin, 300);
+  } else if (moves >= maxMoves) {
+    setTimeout(showLose, 300);
+  }
+}
+
+function showWin() {
+  document.getElementById('winEmoji').textContent = '🌈';
+  document.getElementById('winTitle').textContent = 'Flooded!';
+  document.getElementById('winStats').textContent = `Completed in ${moves}/${maxMoves} moves!`;
+  document.getElementById('winOverlay').classList.add('show');
+}
+
+function showLose() {
+  document.getElementById('winEmoji').textContent = '😢';
+  document.getElementById('winTitle').textContent = 'Out of Moves!';
+  document.getElementById('winStats').textContent = `Try again — you can do it!`;
+  document.getElementById('winOverlay').classList.add('show');
+}
+
+function nextLevel() { startGame(Math.min(currentLevel+1, 3)); }
+function closeWin() { startGame(currentLevel); }
+
+canvas.addEventListener('click', e => {
+  const cell = Math.floor(canvas.width / size);
+  const x = Math.floor(e.offsetX / cell);
+  const y = Math.floor(e.offsetY / cell);
+  if (x===0 && y===0) return;
+  flood(board[y*size+x]);
+});
+
+startGame(1);
+</script>
+</body>
+</html>

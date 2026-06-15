@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Simon Says</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#050510;color:#fff;font-family:'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px;touch-action:manipulation}
+h1{font-size:1.8rem;background:linear-gradient(135deg,#f59e0b,#ef4444,#8b5cf6,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px}
+.hud{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;justify-content:center}
+.stat{background:#0d0d1e;border:1px solid #1e1e38;border-radius:10px;padding:7px 14px;text-align:center;min-width:72px}
+.stat-label{font-size:.6rem;color:#6b7280;text-transform:uppercase;letter-spacing:1px}
+.stat-val{font-size:1.05rem;font-weight:700;color:#f59e0b}
+.speed-bar{display:flex;gap:6px;margin-bottom:14px}
+.spd-btn{background:#0d0d1e;border:1px solid #1e1e38;color:#9ca3af;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:.75rem;transition:all .2s}
+.spd-btn.active{background:#1c1410;border-color:#f59e0b;color:#fde68a}
+.simon{width:min(280px,80vw);height:min(280px,80vw);position:relative;margin:10px 0 16px}
+.pad{position:absolute;width:48%;height:48%;cursor:pointer;transition:filter .1s,transform .1s;border-radius:4px;overflow:hidden}
+.pad::after{content:'';position:absolute;inset:0;background:rgba(255,255,255,0);transition:background .1s}
+.pad.lit::after{background:rgba(255,255,255,.35)}
+.pad:active{transform:scale(.96)}
+.pad.red{top:1%;left:1%;border-radius:50% 4px 4px 4px;background:radial-gradient(ellipse at 40% 40%,#ff6b6b,#dc2626);box-shadow:inset 0 0 20px rgba(0,0,0,.3)}
+.pad.green{top:1%;right:1%;border-radius:4px 50% 4px 4px;background:radial-gradient(ellipse at 60% 40%,#4ade80,#16a34a);box-shadow:inset 0 0 20px rgba(0,0,0,.3)}
+.pad.blue{bottom:1%;left:1%;border-radius:4px 4px 4px 50%;background:radial-gradient(ellipse at 40% 60%,#60a5fa,#2563eb);box-shadow:inset 0 0 20px rgba(0,0,0,.3)}
+.pad.yellow{bottom:1%;right:1%;border-radius:4px 4px 50% 4px;background:radial-gradient(ellipse at 60% 60%,#fde68a,#d97706);box-shadow:inset 0 0 20px rgba(0,0,0,.3)}
+.pad.lit.red{box-shadow:0 0 40px #ef4444,inset 0 0 20px rgba(0,0,0,.1)}
+.pad.lit.green{box-shadow:0 0 40px #22c55e,inset 0 0 20px rgba(0,0,0,.1)}
+.pad.lit.blue{box-shadow:0 0 40px #3b82f6,inset 0 0 20px rgba(0,0,0,.1)}
+.pad.lit.yellow{box-shadow:0 0 40px #f59e0b,inset 0 0 20px rgba(0,0,0,.1)}
+.center-circle{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:22%;height:22%;background:#0d0d1e;border-radius:50%;border:3px solid #1e1e38;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:800;color:#6b7280;z-index:5;cursor:default}
+.status{font-size:.95rem;color:#9ca3af;text-align:center;min-height:28px;margin-bottom:10px;font-weight:600}
+.seq-display{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;min-height:28px;margin-bottom:8px}
+.seq-dot{width:12px;height:12px;border-radius:50%;background:#1e1e38;transition:background .3s}
+.seq-dot.done{background:#4ade80}
+.btn{border:none;color:#fff;border-radius:10px;padding:9px 22px;cursor:pointer;font-size:.85rem;font-weight:700;transition:all .2s}
+.btn-start{background:linear-gradient(135deg,#78350f,#d97706)}
+.btn:hover{transform:translateY(-2px)}
+</style>
+</head>
+<body>
+<h1>🎵 Simon Says</h1>
+<div class="hud">
+  <div class="stat"><div class="stat-label">Round</div><div class="stat-val" id="round">0</div></div>
+  <div class="stat"><div class="stat-label">Best</div><div class="stat-val" id="best">0</div></div>
+  <div class="stat"><div class="stat-label">Score</div><div class="stat-val" id="score">0</div></div>
+  <div class="stat"><div class="stat-label">Lives</div><div class="stat-val" id="lives">❤️❤️❤️</div></div>
+</div>
+<div class="speed-bar">
+  <button class="spd-btn active" onclick="setSpeed(700,this)">Slow</button>
+  <button class="spd-btn" onclick="setSpeed(500,this)">Normal</button>
+  <button class="spd-btn" onclick="setSpeed(300,this)">Fast</button>
+  <button class="spd-btn" onclick="setSpeed(150,this)">Insane</button>
+</div>
+<div class="status" id="status">Press Start to play!</div>
+<div class="seq-display" id="seqDisplay"></div>
+<div class="simon">
+  <div class="pad red" onclick="press('red')"></div>
+  <div class="pad green" onclick="press('green')"></div>
+  <div class="pad blue" onclick="press('blue')"></div>
+  <div class="pad yellow" onclick="press('yellow')"></div>
+  <div class="center-circle" id="center">GO!</div>
+</div>
+<button class="btn btn-start" onclick="startGame()" id="startBtn">▶ Start Game</button>
+<script>
+const COLORS=['red','green','blue','yellow'];
+const TONES={red:261.63,green:329.63,blue:392.00,yellow:523.25};
+let seq=[],playerSeq=[],round=0,best=0,score=0,lives=3,showing=false,speed=700;
+let audioCtx=null;
+
+function tone(freq,dur=200){
+  try{if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.connect(g);g.connect(audioCtx.destination);o.type='sine';o.frequency.value=freq;
+  g.gain.setValueAtTime(.4,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+dur/1000);
+  o.start();o.stop(audioCtx.currentTime+dur/1000);}catch(e){}
+}
+
+function errTone(){
+  try{if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.connect(g);g.connect(audioCtx.destination);o.type='sawtooth';o.frequency.value=100;
+  g.gain.setValueAtTime(.3,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+.5);
+  o.start();o.stop(audioCtx.currentTime+.5);}catch(e){}
+}
+
+function setSpeed(s,btn){speed=s;document.querySelectorAll('.spd-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
+
+function startGame(){
+  seq=[];playerSeq=[];round=0;score=0;lives=3;
+  document.getElementById('startBtn').style.display='none';
+  updateHUD();nextRound();
+}
+
+function nextRound(){
+  round++;playerSeq=[];
+  seq.push(COLORS[Math.floor(Math.random()*4)]);
+  updateHUD();updateSeqDots();
+  setStatus('👀 Watch the sequence...');
+  document.getElementById('center').textContent=round;
+  showSeq();
+}
+
+function showSeq(){
+  showing=true;disablePads();
+  let i=0;
+  const interval=setInterval(()=>{
+    if(i>=seq.length){clearInterval(interval);showing=false;enablePads();setStatus(`🎮 Your turn! ${seq.length} step${seq.length>1?'s':''}`);return;}
+    const c=seq[i];
+    lightPad(c,speed*.6);tone(TONES[c],speed*.6);
+    i++;
+  },speed);
+}
+
+function lightPad(color,dur){
+  const el=document.querySelector('.pad.'+color);
+  el.classList.add('lit');setTimeout(()=>el.classList.remove('lit'),dur);
+}
+
+function press(color){
+  if(showing||!round)return;
+  lightPad(color,150);tone(TONES[color],150);
+  playerSeq.push(color);
+  const pos=playerSeq.length-1;
+  updateSeqDots();
+  if(playerSeq[pos]!==seq[pos]){
+    // Wrong
+    errTone();lives--;
+    updateHUD();
+    if(lives<=0){gameOver();return;}
+    setStatus('❌ Wrong! Watch again...');
+    disablePads();setTimeout(()=>{playerSeq=[];updateSeqDots();showSeq();},1000);
+    return;
+  }
+  if(playerSeq.length===seq.length){
+    // Correct!
+    score+=round*10;disablePads();
+    if(score>best)best=score;
+    setStatus(`✅ Round ${round} complete! +${round*10}`);
+    updateHUD();
+    setTimeout(nextRound,800);
+  }
+}
+
+function updateSeqDots(){
+  const el=document.getElementById('seqDisplay');el.innerHTML='';
+  for(let i=0;i<seq.length;i++){
+    const d=document.createElement('div');d.className='seq-dot'+(i<playerSeq.length?' done':'');el.appendChild(d);
+  }
+}
+
+function disablePads(){document.querySelectorAll('.pad').forEach(p=>p.style.pointerEvents='none');}
+function enablePads(){document.querySelectorAll('.pad').forEach(p=>p.style.pointerEvents='auto');}
+
+function gameOver(){
+  showing=false;disablePads();
+  if(score>best)best=score;
+  setStatus(`💀 Game Over! Score: ${score} · Best: ${best}`);
+  document.getElementById('center').textContent='😵';
+  document.getElementById('startBtn').style.display='block';
+  updateHUD();
+}
+
+function setStatus(m){document.getElementById('status').textContent=m;}
+function updateHUD(){
+  document.getElementById('round').textContent=round;
+  document.getElementById('best').textContent=best;
+  document.getElementById('score').textContent=score;
+  document.getElementById('lives').textContent='❤️'.repeat(Math.max(0,lives))+'🖤'.repeat(Math.max(0,3-lives));
+}
+</script>
+</body>
+</html>
